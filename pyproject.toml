@@ -1,0 +1,15 @@
+[project]
+name = "bottywotty"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "asqlite",
+    "customtkinter>=5.2.2",
+    "dotenv>=0.9.9",
+    "twitchio[starlette]>=3.0.0b4",
+]
+
+[tool.uv.sources]
+asqlite = { git = "https://github.com/Rapptz/asqlite.git" }
