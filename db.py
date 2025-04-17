@@ -16,7 +16,8 @@ class JSONDatabase:
 
     def __init__(self, filepath, default_data):
         self._filepath = filepath
-        self.data = self.load_data() if self.load_data() else default_data
+        _loaded_data = self.load_data()
+        self.data = _loaded_data if _loaded_data else default_data
         self.save_data()
 
     def load_data(self):
