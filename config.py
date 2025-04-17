@@ -9,6 +9,8 @@ LOG_PATH = os.path.join(PROGRAM_DATA_DIR, "logs")
 JSON_DB_PATH = os.path.join(PROGRAM_DATA_DIR, "db")
 
 USERS_DB = os.path.join(JSON_DB_PATH, "users.json")
+BRICK_DB = os.path.join(JSON_DB_PATH, "bricks.json")
+DICE_DB = os.path.join(JSON_DB_PATH, "dice.json")
 
 def setup() -> None:
     # Create the directories if they do not exist
@@ -19,3 +21,9 @@ def setup() -> None:
     if not os.path.exists(USERS_DB):
         with open(USERS_DB, "w") as f:
             f.write("{}")  # Initialize with an empty JSON object
+    if not os.path.exists(BRICK_DB):
+        with open(BRICK_DB, "w") as f:
+            f.write("{}")
+    if not os.path.exists(DICE_DB):
+        with open(DICE_DB, "w") as f:
+            f.write("{}")
