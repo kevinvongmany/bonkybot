@@ -152,6 +152,9 @@ class BotComponent(commands.Component):
             return
         chatter = chatter.replace("@", "").lower()
         chatter_id = user_db.get_user_id_by_name(chatter)
+        if not chatter_id:
+            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid target.")
+            return
         LOGGER.info(f"Granting mod status to {ctx.chatter.name}")
         await ctx.broadcaster.add_moderator(
             user=chatter_id
@@ -167,6 +170,9 @@ class BotComponent(commands.Component):
             return
         chatter = chatter.replace("@", "").lower()
         chatter_id = user_db.get_user_id_by_name(chatter)
+        if not chatter_id:
+            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid target.")
+            return
         user_db.grant_permamod(chatter_id)
         await ctx.send(f"Granted permanent mod status to {chatter}.")
         await ctx.broadcaster.add_moderator(
@@ -181,6 +187,9 @@ class BotComponent(commands.Component):
             return
         chatter = chatter.replace("@", "").lower()
         chatter_id = user_db.get_user_id_by_name(chatter)
+        if not chatter_id:
+            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid target.")
+            return
         user_db.revoke_mod_status(chatter_id)
         if ctx.chatter.moderator:
             await ctx.send(f"Revoking mod status from {chatter}")
