@@ -11,16 +11,20 @@ import random
 import os
 import config
 from datetime import datetime
-from config import CLIENT_ID, CLIENT_SECRET, BOT_ID, OWNER_ID, LOG_PATH, setup
-from db import UserDatabase
+from config import CLIENT_ID, CLIENT_SECRET, BOT_ID, OWNER_ID, LOG_PATH, JSON_DB_PATH, setup
+from db import UserDatabase, BrickGameDatabase, DiceGameDatabase
 
 LOGGER: logging.Logger = logging.getLogger("BonkyBot")
 
 user_db = UserDatabase()
+brick_db = BrickGameDatabase()
+dice_db = DiceGameDatabase()
+   
 
 class Bot(commands.Bot):
-    def __init__(self, *, token_database: asqlite.Pool) -> None:
+    def __init__(self, *, token_database: asqlite.Pool, configured: bool = True) -> None:
         self.token_database = token_database
+        self.configured = configured
         super().__init__(
             client_id=CLIENT_ID,
             client_secret=CLIENT_SECRET,
@@ -30,6 +34,8 @@ class Bot(commands.Bot):
         )
 
     async def setup_hook(self) -> None:
+        if not self.configured:
+            return
         # Add our component which contains our commands...
         await self.add_component(BotComponent(self))
 
@@ -125,32 +131,48 @@ class BotComponent(commands.Component):
         print(f"[{payload.broadcaster.name}] - {payload.chatter.name}: {payload.text}")
         user = user_db.get_user(payload.chatter.id)
         if not user or user["name"] != payload.chatter.name:
-            user = user_db.update_user(payload)
+            user = user_db.update_current_chatter(payload)
         if user['persistent_mod'] and not payload.chatter.moderator: 
             await payload.broadcaster.send_message(
                 sender=self.bot.bot_id,
                 message=f"{payload.chatter.mention} you're supposed to be a moderator, but you're not. I will fix that for you!",
             )
-            await self.grant_mod_status(payload)
-        
-
-    @commands.command(aliases=["mod"])
-    @commands.is_broadcaster()
-    async def grant_mod_status(self, ctx: commands.Context) -> None:
-        if not ctx.chatter.moderator:
-            LOGGER.info(f"Granting mod status to {ctx.chatter.name}")
-            await ctx.broadcaster.add_moderator(
-                user=ctx.chatter.id
+            LOGGER.info(f"Granting mod status to {payload.chatter.name}")
+            await payload.broadcaster.add_moderator(
+                user=payload.chatter.id
             )
+            user_db.update_user_data(payload.chatter.id, {"mod": True})
+            
+
+    @commands.command(aliases=["mod", "m", "m0d"])
+    @commands.is_broadcaster()
+    async def grant_mod_status(self, ctx: commands.Context, chatter) -> None:
+        if not chatter:
+            await ctx.send("Please provide a username to mod.")
+            return
+        chatter = chatter.replace("@", "").lower()
+        chatter_id = user_db.get_user_id_by_name(chatter)
+        if not chatter_id:
+            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid target.")
+            return
+        LOGGER.info(f"Granting mod status to {ctx.chatter.name}")
+        await ctx.broadcaster.add_moderator(
+            user=chatter_id
+        )
+        user_db.update_user_data(chatter_id, {"mod": True})
+
     
-    @commands.command(aliases=["permamod"])
+    @commands.command(aliases=["permamod", "permam0d", "pm"])
     @commands.is_broadcaster()
     async def grant_perm_mod_status(self, ctx: commands.Context, chatter) -> None:
         if not chatter:
             await ctx.send("Please provide a username to grant permanent mod status to.")
             return
-        chatter = chatter.replace("@", "")
+        chatter = chatter.replace("@", "").lower()
         chatter_id = user_db.get_user_id_by_name(chatter)
+        if not chatter_id:
+            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid target.")
+            return
         user_db.grant_permamod(chatter_id)
         await ctx.send(f"Granted permanent mod status to {chatter}.")
         await ctx.broadcaster.add_moderator(
@@ -163,8 +185,11 @@ class BotComponent(commands.Component):
         if not chatter:
             await ctx.send("Please provide a username to revoke mod status from.")
             return
-        chatter = chatter.replace("@", "")
+        chatter = chatter.replace("@", "").lower()
         chatter_id = user_db.get_user_id_by_name(chatter)
+        if not chatter_id:
+            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid target.")
+            return
         user_db.revoke_mod_status(chatter_id)
         if ctx.chatter.moderator:
             await ctx.send(f"Revoking mod status from {chatter}")
@@ -182,8 +207,9 @@ class BotComponent(commands.Component):
             target = " ".join(_args)
         else:
             chatters = await self.get_current_chatters(ctx)
-            print(chatters)
             target = self.pick_random_chatter(chatters)
+            if target == brick_db.get_users_target(ctx.chatter.name):
+                await ctx.send(f"You hit your target! You gain a point!")
         await ctx.send(self.throw_brick_at_user(ctx.chatter.name, target))
         if target.lower() == ctx.broadcaster.name:
             await ctx.send("You just threw a brick at the streamer! Now you die.")
@@ -193,6 +219,27 @@ class BotComponent(commands.Component):
                 duration=5, 
                 reason="Lost brick roulette"
                 )
+            
+    @commands.command(aliases=["target"])
+    async def brick_target(self, ctx: commands.Context, *args) -> None:
+        target = ""
+        _args = self.clean_args(ctx.args)
+        if _args:
+            target = _args[0]
+        # Set the target for the user...
+        if not target:
+            await ctx.send(f"Your current target is set to: {brick_db.get_users_target(ctx.chatter.name)}")
+            return
+        target = target.replace("@", "").lower()
+        if target == ctx.chatter.name:
+            await ctx.send("You cannot set yourself as your target.")
+            return
+        # chatter_id = user_db.get_user_id_by_name(target)
+        # if not chatter_id:
+        #     await ctx.send(f"{target} is not a valid user. They must have chatted at least once today to be a valid target.")
+        #     return
+        brick_db.set_users_target(ctx.chatter.name, target)
+        await ctx.send(f"Set {target} as your target.")
 
     @commands.command(aliases=["d20"])
     async def roll_dice(self, ctx: commands.Context) -> None:
@@ -202,41 +249,28 @@ class BotComponent(commands.Component):
             await ctx.send(f"{ctx.chatter.mention} rolls a natural 20!")
         elif random_dice_roll == 1:
             await ctx.send(f"{ctx.chatter.mention} rolls a 1! CRITICAL FAIL!")
+            await ctx.channel.timeout_user(
+                moderator=OWNER_ID, 
+                user=ctx.chatter.id, 
+                duration=5, 
+                reason="Rolled a 1"
+                )
         else:
             await ctx.send(f"{ctx.chatter.mention} rolls a {random_dice_roll}!")
+    
+    @commands.command(aliases=["help"])
+    async def bonky_help(self, ctx: commands.Context) -> None:
+        # Display a list of commands...
+        await ctx.send(
+            f"Viewer commands: !brick, !d20, !help. Broadcaster commands: !mod/!m/!m0d, !unmod/!um/!unm0d, !permamod/!pm/!permam0d. Please message @bonksolid on discord to report bugs or request features."
+        )
 
-    @commands.command(aliases=["hello", "howdy", "hey"])
-    async def hi(self, ctx: commands.Context) -> None:
-        """Simple command that says hello!
-
-        !hi, !hello, !howdy, !hey
-        """
-        await ctx.reply(f"Hello {ctx.chatter.mention}!")
-
-    @commands.group(invoke_fallback=True)
-    async def socials(self, ctx: commands.Context) -> None:
-        """Group command for our social links.
-
-        !socials
-        """
-        await ctx.send("discord.gg/..., youtube.com/..., twitch.tv/...")
-
-    @socials.command(name="discord")
-    async def socials_discord(self, ctx: commands.Context) -> None:
-        """Sub command of socials that sends only our discord invite.
-
-        !socials discord
-        """
-        await ctx.send("discord.gg/...")
-
-    @commands.command(aliases=["repeat"])
-    @commands.is_moderator()
-    async def say(self, ctx: commands.Context, *, content: str) -> None:
-        """Moderator only command which repeats back what you say.
-
-        !say hello world, !repeat I am cool LUL
-        """
-        await ctx.send(content)
+    @commands.command(aliases=["commands"])
+    async def bonky_commands(self, ctx: commands.Context) -> None:
+        # Display a list of commands...
+        await ctx.send(
+            f"!brick - randomly bricks a random chatter, but times you out if you hit the streamer. !brick <username> - bricks the specified user. !d20 - rolls a d20 and times you out if you roll a 1."
+        )
 
     @commands.Component.listener()
     async def event_stream_online(self, payload: twitchio.StreamOnline) -> None:
@@ -263,7 +297,7 @@ def main() -> None:
     twitchio.utils.setup_logging(handler=log_file_handler, formatter=log_formatter, level=logging.INFO)
 
     async def runner() -> None:
-        async with asqlite.create_pool("tokens.db") as tdb, Bot(token_database=tdb) as bot:
+        async with asqlite.create_pool(os.path.join(JSON_DB_PATH, "bonkybot.db")) as tdb, Bot(token_database=tdb, configured=False) as bot:
             await bot.setup_database()
             await bot.start()
 
