@@ -3,13 +3,21 @@ name = "bottywotty"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
     "asqlite",
+    "async-tkinter-loop>=0.9.3",
     "customtkinter>=5.2.2",
     "dotenv>=0.9.9",
+    "requests>=2.32.3",
     "twitchio[starlette]>=3.0.0b4",
 ]
 
 [tool.uv.sources]
 asqlite = { git = "https://github.com/Rapptz/asqlite.git" }
+
+[dependency-groups]
+dev = [
+    "pillow>=11.2.1",
+    "pyinstaller>=6.13.0",
+]

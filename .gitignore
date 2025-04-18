@@ -5,6 +5,8 @@ build/
 dist/
 wheels/
 *.egg-info
+*dist/
+*build/
 
 # sqlite db files
 *.db
@@ -16,3 +18,5 @@ wheels/
 
 # Virtual environments
 .venv
+
+*.exe
