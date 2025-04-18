@@ -1,6 +1,21 @@
 # BonkyBot
 A custom Twitch bot for the community, built with love by BonkyWonky aka WilfredOwen/Bonksolid.
 
+# Features
+
+## Config
+* Loadable configuration
+* One time setup instructions
+## Chatbot
+* `!mod <username>` mods user
+* `!permamod <username>` mods user, if they get timed out, bot will remod them after they type their next message
+* `!unmod <username>` revokes mod and permamod status
+* `!brick` in chat, randomly throws virtual brick at another random viewer, will timeout user if it hits broadcaster
+* `!brick <target>` in chat, throws virtual brick at target, will timeout user if it hits broadcaster
+* `!target <username>` will set brick target to nominated username, if successfully hit via `!brick` then they'll gain arbitrary points (WIP)
+* `!d20` randomly rolls a number between 1 - 20, times out user if result is 1
+
+# Setup Instructions
 ## App Setup
 This section will detail how to get your CLIENT_ID and CLIENT_SECRET details to allow the bot to make API calls to Twitch.
 
