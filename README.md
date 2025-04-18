@@ -49,9 +49,10 @@ Enter your desired username into the box and click the button. This will return 
 3. Follow steps in [App Setup](#app-setup) to create a new Twitch application for the bot account. This will be used to generate the CLIENT_ID and CLIENT_SECRET for the bot.
 4. Run the bonkybotconfig.exe.
 5. Load the OWNER_ID, BOT_ID, CLIENT_ID and CLIENT_SECRET values into the config window. The CLIENT_ID and CLIENT_SECRET values should be from the Twitch application you created in step 3. The OWNER_ID and BOT_ID values should be from the Twitch account you created in step 1. Press **Load config items** and restart application once done.
-6. Press the buttons under the **Setup** section in order to generate the OAuth token for the bot account. This will open a new window in your browser, where you will need to log into the bot account and authorize the application. Once done, open a new incognito window and paste the URL into the address bar. This will allow your bot to send messages in chat.
-7. Close bonkybotconfig.exe.
-8. Run bonkybot.exe and click **Launch Bonky Bot** to enable the bot.
+6. Press the buttons under the **Setup** section in order to generate the OAuth token for the bot account. The 2nd button will open a new window in your browser where you'll need to login to your main/broadcasting Twitch account, this will authorise your bot to make actions on your behalf. 
+7. Once done, press the 3rd button and open a new incognito window and paste the URL into the address bar where you will need to log into the bot account and authorize the application, this will allow your bot to send messages in chat.
+8. Close bonkybotconfig.exe.
+9. Run bonkybot.exe and click **Launch Bonky Bot** to enable the bot.
 
 ## Troubleshooting
 
