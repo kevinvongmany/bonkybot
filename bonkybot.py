@@ -1,96 +1,27 @@
 import asyncio
 import logging
-import sqlite3
 
 import asqlite
 import twitchio
 from twitchio.ext import commands
-from twitchio import eventsub
 import random
 
 import os
 import config
 from datetime import datetime
-from config import CLIENT_ID, CLIENT_SECRET, BOT_ID, OWNER_ID, LOG_PATH, JSON_DB_PATH, setup
+from config import OWNER_ID, LOG_PATH, JSON_DB_PATH
 from db import UserDatabase, BrickGameDatabase, DiceGameDatabase
 
+from bot import Bot
+
 LOGGER: logging.Logger = logging.getLogger("BonkyBot")
-
-user_db = UserDatabase()
-brick_db = BrickGameDatabase()
-dice_db = DiceGameDatabase()
-   
-
-class Bot(commands.Bot):
-    def __init__(self, *, token_database: asqlite.Pool, configured: bool = True) -> None:
-        self.token_database = token_database
-        self.configured = configured
-        super().__init__(
-            client_id=CLIENT_ID,
-            client_secret=CLIENT_SECRET,
-            bot_id=BOT_ID,
-            owner_id=OWNER_ID,
-            prefix="!",
-        )
-
-    async def setup_hook(self) -> None:
-        if not self.configured:
-            return
-        # Add our component which contains our commands...
-        await self.add_component(BotComponent(self))
-
-        # Subscribe to read chat (event_message) from our channel as the bot...
-        # This creates and opens a websocket to Twitch EventSub...
-        subscription = eventsub.ChatMessageSubscription(broadcaster_user_id=OWNER_ID, user_id=BOT_ID)
-        await self.subscribe_websocket(payload=subscription)
-
-        # Subscribe and listen to when a stream goes live..
-        # For this example listen to our own stream...
-        subscription = eventsub.StreamOnlineSubscription(broadcaster_user_id=OWNER_ID)
-        await self.subscribe_websocket(payload=subscription)
-
-    async def add_token(self, token: str, refresh: str) -> twitchio.authentication.ValidateTokenPayload:
-        # Make sure to call super() as it will add the tokens interally and return us some data...
-        resp: twitchio.authentication.ValidateTokenPayload = await super().add_token(token, refresh)
-
-        # Store our tokens in a simple SQLite Database when they are authorized...
-        query = """
-        INSERT INTO tokens (user_id, token, refresh)
-        VALUES (?, ?, ?)
-        ON CONFLICT(user_id)
-        DO UPDATE SET
-            token = excluded.token,
-            refresh = excluded.refresh;
-        """
-
-        async with self.token_database.acquire() as connection:
-            await connection.execute(query, (resp.user_id, token, refresh))
-
-        LOGGER.info("Added token to the database for user: %s", resp.user_id)
-        return resp
-
-    async def load_tokens(self, path: str | None = None) -> None:
-        # We don't need to call this manually, it is called in .login() from .start() internally...
-
-        async with self.token_database.acquire() as connection:
-            rows: list[sqlite3.Row] = await connection.fetchall("""SELECT * from tokens""")
-
-        for row in rows:
-            await self.add_token(row["token"], row["refresh"])
-
-    async def setup_database(self) -> None:
-        # Create our token table, if it doesn't exist..
-        create_token_table = """CREATE TABLE IF NOT EXISTS tokens(user_id TEXT PRIMARY KEY, token TEXT NOT NULL, refresh TEXT NOT NULL)"""
-        async with self.token_database.acquire() as connection:
-            await connection.execute(create_token_table)
-
-    async def event_ready(self) -> None:
-        LOGGER.info("Successfully logged in as: %s", self.bot_id)
-
 
 class BotComponent(commands.Component):
     def __init__(self, bot: Bot):
         # Passing args is not required...
+        self.user_db = UserDatabase()
+        self.brick_db = BrickGameDatabase()
+        self.dice_db = DiceGameDatabase()
         # We pass bot here as an example...
         self.bot = bot
 
@@ -129,9 +60,9 @@ class BotComponent(commands.Component):
     @commands.Component.listener()
     async def event_message(self, payload: twitchio.ChatMessage) -> None:
         print(f"[{payload.broadcaster.name}] - {payload.chatter.name}: {payload.text}")
-        user = user_db.get_user(payload.chatter.id)
+        user = self.user_db.get_user(payload.chatter.id)
         if not user or user["name"] != payload.chatter.name:
-            user = user_db.update_current_chatter(payload)
+            user = self.user_db.update_current_chatter(payload)
         if user['persistent_mod'] and not payload.chatter.moderator: 
             await payload.broadcaster.send_message(
                 sender=self.bot.bot_id,
@@ -141,7 +72,7 @@ class BotComponent(commands.Component):
             await payload.broadcaster.add_moderator(
                 user=payload.chatter.id
             )
-            user_db.update_user_data(payload.chatter.id, {"mod": True})
+            self.user_db.update_user_data(payload.chatter.id, {"mod": True})
             
 
     @commands.command(aliases=["mod", "m", "m0d"])
@@ -151,7 +82,7 @@ class BotComponent(commands.Component):
             await ctx.send("Please provide a username to mod.")
             return
         chatter = chatter.replace("@", "").lower()
-        chatter_id = user_db.get_user_id_by_name(chatter)
+        chatter_id = self.user_db.get_user_id_by_name(chatter)
         if not chatter_id:
             await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid target.")
             return
@@ -159,7 +90,7 @@ class BotComponent(commands.Component):
         await ctx.broadcaster.add_moderator(
             user=chatter_id
         )
-        user_db.update_user_data(chatter_id, {"mod": True})
+        self.user_db.update_user_data(chatter_id, {"mod": True})
 
     
     @commands.command(aliases=["permamod", "permam0d", "pm"])
@@ -169,11 +100,11 @@ class BotComponent(commands.Component):
             await ctx.send("Please provide a username to grant permanent mod status to.")
             return
         chatter = chatter.replace("@", "").lower()
-        chatter_id = user_db.get_user_id_by_name(chatter)
+        chatter_id = self.user_db.get_user_id_by_name(chatter)
         if not chatter_id:
             await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid target.")
             return
-        user_db.grant_permamod(chatter_id)
+        self.user_db.grant_permamod(chatter_id)
         await ctx.send(f"Granted permanent mod status to {chatter}.")
         await ctx.broadcaster.add_moderator(
                 user=chatter_id
@@ -186,11 +117,11 @@ class BotComponent(commands.Component):
             await ctx.send("Please provide a username to revoke mod status from.")
             return
         chatter = chatter.replace("@", "").lower()
-        chatter_id = user_db.get_user_id_by_name(chatter)
+        chatter_id = self.user_db.get_user_id_by_name(chatter)
         if not chatter_id:
             await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid target.")
             return
-        user_db.revoke_mod_status(chatter_id)
+        self.user_db.revoke_mod_status(chatter_id)
         if ctx.chatter.moderator:
             await ctx.send(f"Revoking mod status from {chatter}")
             await ctx.broadcaster.remove_moderator(
@@ -208,7 +139,7 @@ class BotComponent(commands.Component):
         else:
             chatters = await self.get_current_chatters(ctx)
             target = self.pick_random_chatter(chatters)
-            if target == brick_db.get_users_target(ctx.chatter.name):
+            if target == self.brick_db.get_users_target(ctx.chatter.name):
                 await ctx.send(f"You hit your target! You gain a point!")
         await ctx.send(self.throw_brick_at_user(ctx.chatter.name, target))
         if target.lower() == ctx.broadcaster.name:
@@ -228,17 +159,17 @@ class BotComponent(commands.Component):
             target = _args[0]
         # Set the target for the user...
         if not target:
-            await ctx.send(f"Your current target is set to: {brick_db.get_users_target(ctx.chatter.name)}")
+            await ctx.send(f"Your current target is set to: {self.brick_db.get_users_target(ctx.chatter.name)}")
             return
         target = target.replace("@", "").lower()
         if target == ctx.chatter.name:
             await ctx.send("You cannot set yourself as your target.")
             return
-        # chatter_id = user_db.get_user_id_by_name(target)
+        # chatter_id = self.user_db.get_user_id_by_name(target)
         # if not chatter_id:
         #     await ctx.send(f"{target} is not a valid user. They must have chatted at least once today to be a valid target.")
         #     return
-        brick_db.set_users_target(ctx.chatter.name, target)
+        self.brick_db.set_users_target(ctx.chatter.name, target)
         await ctx.send(f"Set {target} as your target.")
 
     @commands.command(aliases=["d20"])
@@ -285,27 +216,8 @@ class BotComponent(commands.Component):
 
 
 
-def main() -> None:
-    config.setup()
-    log_file_handler = logging.FileHandler(
-        os.path.join(
-            LOG_PATH, 
-            f"bonkybot_{datetime.now().strftime('%Y%m%d')}.log"
-        )
-    )
-    log_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    twitchio.utils.setup_logging(handler=log_file_handler, formatter=log_formatter, level=logging.INFO)
-
-    async def runner() -> None:
-        async with asqlite.create_pool(os.path.join(JSON_DB_PATH, "bonkybot.db")) as tdb, Bot(token_database=tdb, configured=False) as bot:
-            await bot.setup_database()
-            await bot.start()
-
-    try:
-        asyncio.run(runner())
-    except KeyboardInterrupt:
-        LOGGER.warning("Shutting down due to KeyboardInterrupt...")
 
 
-if __name__ == "__main__":
-    main()
+
+# if __name__ == "__main__":
+#     main()
