@@ -48,13 +48,11 @@ Enter your desired username into the box and click the button. This will return 
 2. Follow the steps in [Username to ID Lookup](#username-to-id-lookup) to find the ID of this account. This will be your BOT_ID.
 3. Follow steps in [App Setup](#app-setup) to create a new Twitch application for the bot account. This will be used to generate the CLIENT_ID and CLIENT_SECRET for the bot.
 4. Run the bonkybotconfig.exe.
-5. Open a new browser / incognito mode, log in as the bot account and visit http://localhost:4343/oauth?scopes=user:read:chat%20user:write:chat%20user:bot
-6. In your main browser whilst logged in as your account, visit http://localhost:4343/oauth?scopes=channel:bot%20moderator:read:chatters%20channel:manage:moderators%20channel:manage:vips%20moderator:manage:shoutouts%20moderator:manage:banned_users
+5. Load the OWNER_ID, BOT_ID, CLIENT_ID and CLIENT_SECRET values into the config window. The CLIENT_ID and CLIENT_SECRET values should be from the Twitch application you created in step 3. The OWNER_ID and BOT_ID values should be from the Twitch account you created in step 1. Press **Load config items** and restart application once done.
+6. Press the buttons under the **Setup** section in order to generate the OAuth token for the bot account. This will open a new window in your browser, where you will need to log into the bot account and authorize the application. Once done, open a new incognito window and paste the URL into the address bar. This will allow your bot to send messages in chat.
 7. Close bonkybotconfig.exe.
-8. Run bonkybot.exe to launch your bot.
+8. Run bonkybot.exe and click **Launch Bonky Bot** to enable the bot.
 
 ## Troubleshooting
 
-Database and logs can be found in `%PROGRAMDATA%\BonkyBot\` where there will be a `logs` folder and a `db` folder.
-
-Close the application, archive this folder into a .zip using 7z or Windows zip and send these to @bonksolid on Discord if you need further assistance.
+While bonkybot is running, click **Open config and log folder** to open the config folder for bonkybot. Archive this folder into a .zip using 7z or Windows zip and send these to @bonksolid on Discord if you need further assistance.
