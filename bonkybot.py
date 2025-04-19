@@ -180,7 +180,6 @@ class BotComponent(commands.Component):
 
     @commands.command(aliases=["d20"])
     async def roll_dice(self, ctx: commands.Context) -> None:
-        print(self.dice_db.is_new_player(ctx.chatter.name))
         # Roll a dice with the given number of sides...
         random_dice_roll = random.randint(1, 20)
         if random_dice_roll == 20:
@@ -203,7 +202,6 @@ class BotComponent(commands.Component):
             await ctx.send(f"{ctx.chatter.mention} rolls a {random_dice_roll}!")
 
         self.dice_db.add_player(ctx.chatter.name)
-        print(self.dice_db.is_new_player(ctx.chatter.name))
     
     @commands.command(aliases=["help"])
     async def bonky_help(self, ctx: commands.Context) -> None:
