@@ -175,6 +175,9 @@ class BotComponent(commands.Component):
         if target == ctx.chatter.name:
             await ctx.send("You cannot set yourself as your target.")
             return
+        elif target == ctx.broadcaster.name:
+            await ctx.send("You cannot set the streamer as your target.")
+            return
         self.brick_db.set_users_target(ctx.chatter.name, target)
         await ctx.send(f"Set {target} as your target. !brick them to get them timed out!")
 
