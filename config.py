@@ -26,7 +26,7 @@ def setup() -> None:
     if not os.path.exists(DICE_DB):
         with open(DICE_DB, "w") as f:
             f.write("{}")
-
+setup()
 config.read(CONFIG_PATH)
 
 if not config.has_section("Twitch"):

@@ -140,16 +140,26 @@ class BotComponent(commands.Component):
             chatters = await self.get_current_chatters(ctx)
             target = self.pick_random_chatter(chatters)
             if target == self.brick_db.get_users_target(ctx.chatter.name):
-                await ctx.send(f"You hit your target! You gain a point!")
-        await ctx.send(self.throw_brick_at_user(ctx.chatter.name, target))
+                target_id = self.user_db.get_user_id_by_name(target)
+                if target_id:
+                    await ctx.send(f"{ctx.chatter.name} hit their target {target}! They have been timed out!")
+                    await ctx.channel.timeout_user(
+                        moderator=OWNER_ID, 
+                        user=target_id, 
+                        duration=5, 
+                        reason="Brick roulette victim"
+                        )
+                    return
         if target.lower() == ctx.broadcaster.name:
-            await ctx.send("You just threw a brick at the streamer! Now you die.")
+            await ctx.send(f"{ctx.chatter.name} just threw a brick at {ctx.broadcaster.name} and will now be timed out!")
             await ctx.channel.timeout_user(
                 moderator=OWNER_ID, 
                 user=ctx.chatter.id, 
                 duration=5, 
                 reason="Lost brick roulette"
                 )
+            return
+        await ctx.send(self.throw_brick_at_user(ctx.chatter.name, target))
             
     @commands.command(aliases=["target"])
     async def brick_target(self, ctx: commands.Context, *args) -> None:
@@ -165,19 +175,23 @@ class BotComponent(commands.Component):
         if target == ctx.chatter.name:
             await ctx.send("You cannot set yourself as your target.")
             return
-        # chatter_id = self.user_db.get_user_id_by_name(target)
-        # if not chatter_id:
-        #     await ctx.send(f"{target} is not a valid user. They must have chatted at least once today to be a valid target.")
-        #     return
         self.brick_db.set_users_target(ctx.chatter.name, target)
         await ctx.send(f"Set {target} as your target.")
 
     @commands.command(aliases=["d20"])
     async def roll_dice(self, ctx: commands.Context) -> None:
+        print(self.dice_db.is_new_player(ctx.chatter.name))
         # Roll a dice with the given number of sides...
-        random_dice_roll = random.randint(1, 20)
+        # random_dice_roll = random.randint(1, 20)
+        random_dice_roll = 20
         if random_dice_roll == 20:
-            await ctx.send(f"{ctx.chatter.mention} rolls a natural 20!")
+            if self.dice_db.is_new_player(ctx.chatter.name) and not ctx.chatter.moderator:
+                await ctx.send(f"{ctx.chatter.mention} just got super lucky and rolled a 20 in their first attempt today! You are now a mod!")
+                await ctx.broadcaster.add_moderator(
+                    user=ctx.chatter.id
+                )
+            else:
+                await ctx.send(f"{ctx.chatter.mention} rolls a natural 20!")
         elif random_dice_roll == 1:
             await ctx.send(f"{ctx.chatter.mention} rolls a 1! CRITICAL FAIL!")
             await ctx.channel.timeout_user(
@@ -188,6 +202,9 @@ class BotComponent(commands.Component):
                 )
         else:
             await ctx.send(f"{ctx.chatter.mention} rolls a {random_dice_roll}!")
+
+        self.dice_db.add_player(ctx.chatter.name)
+        print(self.dice_db.is_new_player(ctx.chatter.name))
     
     @commands.command(aliases=["help"])
     async def bonky_help(self, ctx: commands.Context) -> None:
