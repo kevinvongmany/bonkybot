@@ -48,13 +48,13 @@ class BonkyBotApp(customtkinter.CTk, AsyncCTk):
         self.destroy()
         
 def main() -> None:
-    config.setup()
     log_file_handler = logging.FileHandler(
         os.path.join(
             LOG_PATH, 
             f"bonkybot_{datetime.now().strftime('%Y%m%d')}.log"
         )
     )
+    
     log_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     twitchio.utils.setup_logging(handler=log_file_handler, formatter=log_formatter, level=logging.INFO)
 

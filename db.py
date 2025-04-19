@@ -29,6 +29,10 @@ class JSONDatabase:
         with open(self._filepath, "w") as f:
             json.dump(self.data, f, indent=4)
 
+    def reset_data(self, data):
+        self.data = data
+        self.save_data()
+
 class UserDatabase(JSONDatabase):
     """
     A simple class to manage user data in a JSON file.
@@ -172,9 +176,9 @@ class DiceGameDatabase(JSONDatabase):
 
     def __init__(self):
         super().__init__(DICE_DB, self.DEFAULT_DATA)
+        self.reset_data(self.DEFAULT_DATA)
         self.set_timestamp()
 
-    
     def get_timestamp(self):
         return self.data["timestamp"]
     
