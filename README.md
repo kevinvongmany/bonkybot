@@ -59,3 +59,17 @@ Enter your desired username into the box and click the button. This will return 
 ## Troubleshooting
 
 While bonkybot is running, click **Open config and log folder** to open the config folder for bonkybot. Archive this folder into a .zip using 7z or Windows zip and send these to @bonksolid on Discord if you need further assistance.
+
+# Contributions
+This bot is open source and contributions are welcome. Please fork the repository and create a pull request with your changes. If you have any suggestions or feature requests, please create an issue on the repository.
+
+## Credits
+
+Thanks to the following people for their contributions and testing to support this project:
+
+### Twitch chatters
+* baconater250
+* e1sieq
+* lolffy_
+* mc1arence
+* haminator100
