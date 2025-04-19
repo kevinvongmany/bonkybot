@@ -169,14 +169,14 @@ class BotComponent(commands.Component):
             target = _args[0]
         # Set the target for the user...
         if not target:
-            await ctx.send(f"Your current target is set to: {self.brick_db.get_users_target(ctx.chatter.name)}")
+            await ctx.send(f"Your current target is set to: {self.brick_db.get_users_target(ctx.chatter.name)}. To change it, use !brick target <username>.")
             return
         target = target.replace("@", "").lower()
         if target == ctx.chatter.name:
             await ctx.send("You cannot set yourself as your target.")
             return
         self.brick_db.set_users_target(ctx.chatter.name, target)
-        await ctx.send(f"Set {target} as your target.")
+        await ctx.send(f"Set {target} as your target. !brick them to get them timed out!")
 
     @commands.command(aliases=["d20"])
     async def roll_dice(self, ctx: commands.Context) -> None:
