@@ -7,13 +7,15 @@ A custom Twitch bot for the community, built with love by BonkyWonky aka Wilfred
 * Loadable configuration
 * One time setup instructions
 ## Chatbot
+### Broadcaster Commands
 * `!mod <username>` mods user
 * `!permamod <username>` mods user, if they get timed out, bot will remod them after they type their next message
 * `!unmod <username>` revokes mod and permamod status
+### Chatter Commands
 * `!brick` in chat, randomly throws virtual brick at another random viewer, will timeout user if it hits broadcaster
 * `!brick <target>` in chat, throws virtual brick at target, will timeout user if it hits broadcaster
-* `!target <username>` will set brick target to nominated username, if successfully hit via `!brick` then they'll gain arbitrary points (WIP)
-* `!d20` randomly rolls a number between 1 - 20, times out user if result is 1
+* `!target <username>` will set brick target to nominated username, if successfully hit via `!brick` then they'll timeout the target chatter (target must have been chatting in the channel beforehand)
+* `!d20` randomly rolls a number between 1 - 20, times out user if result is 1, mods user if it's their first result is 20 for the session
 
 # Setup Instructions
 ## App Setup
