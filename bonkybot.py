@@ -182,8 +182,7 @@ class BotComponent(commands.Component):
     async def roll_dice(self, ctx: commands.Context) -> None:
         print(self.dice_db.is_new_player(ctx.chatter.name))
         # Roll a dice with the given number of sides...
-        # random_dice_roll = random.randint(1, 20)
-        random_dice_roll = 20
+        random_dice_roll = random.randint(1, 20)
         if random_dice_roll == 20:
             if self.dice_db.is_new_player(ctx.chatter.name) and not ctx.chatter.moderator:
                 await ctx.send(f"{ctx.chatter.mention} just got super lucky and rolled a 20 in their first attempt today! You are now a mod!")
