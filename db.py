@@ -32,6 +32,10 @@ class JSONDatabase:
     def reset_data(self, data):
         self.data = data
         self.save_data()
+    
+    def get_current_timestamp(self) -> int:
+        # Get the current timestamp
+        return int(datetime.now().timestamp())
 
 class UserDatabase(JSONDatabase):
     """
@@ -70,6 +74,7 @@ class UserDatabase(JSONDatabase):
                 user["name"] = payload.chatter.name
                 user["mod"] = payload.chatter.moderator
                 user["sub"] = payload.chatter.subscriber
+                user["last_message_ts"] = self.get_current_timestamp()
                 self.save_data()
                 return user
             
@@ -109,6 +114,17 @@ class UserDatabase(JSONDatabase):
     def revoke_mod_status(self, user_id) -> None:
         # Check if user exists
         self.update_user_data(user_id, {"mod": False, "persistent_mod": False})
+
+    def append_auto_response(self, username, response) -> None:
+        # Check if user exists
+        for user in self.data["users"]:
+            if user["name"] == username:
+                if "auto_responses" not in user:
+                    user["auto_responses"] = []
+                user["auto_responses"].append(response)
+                self.save_data()
+    
+
 
 class BrickGameDatabase(JSONDatabase):
     """
@@ -183,7 +199,7 @@ class DiceGameDatabase(JSONDatabase):
         return self.data["timestamp"]
     
     def set_timestamp(self):
-        self.data["timestamp"] = int(datetime.now().timestamp())
+        self.data["timestamp"] = self.get_current_timestamp()
         self.save_data()
 
     def is_new_player(self, username):
