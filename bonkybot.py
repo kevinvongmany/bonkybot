@@ -13,12 +13,14 @@ from bot import Bot
 LOGGER: logging.Logger = logging.getLogger("BonkyBot")
 
 class BotComponent(commands.Component):
-    def __init__(self, bot: Bot) -> None:
+    def __init__(self, bot: Bot, ban_keyword=None, mod_keyword=None) -> None:
         # Load database files into memory
         self.user_db = UserDatabase()
         self.brick_db = BrickGameDatabase()
         self.dice_db = DiceGameDatabase()
         self.bot = bot
+        self.ban_keyword = ban_keyword
+        self.mod_keyword = mod_keyword
 
     
     def _set_supermod(self, user: dict[str, str]) -> None:
@@ -67,6 +69,23 @@ class BotComponent(commands.Component):
             user = self.user_db.update_current_chatter(payload)
         return user
     
+    async def check_for_ban_keyword(self, payload: twitchio.ChatMessage) -> None:
+        if self.ban_keyword and self.ban_keyword in payload.text.lower():
+            await payload.broadcaster.timeout_user(
+                moderator=OWNER_ID, 
+                user=payload.chatter.id, 
+                duration=5, 
+                reason="Culled for using the forbidden keyword"
+            )
+            LOGGER.info(f"Timed out moderator {payload.chatter.name} for using the keyword '{self.ban_keyword}'")
+
+    async def check_for_mod_keyword(self, payload: twitchio.ChatMessage) -> None:
+        if self.mod_keyword and self.mod_keyword in payload.text.lower():
+            await payload.broadcaster.add_moderator(
+                user=payload.chatter.id
+            )
+            self.user_db.update_user_data(payload.chatter.id, {"mod": True})
+            LOGGER.info(f"Granting mod status to {payload.chatter.name} for using the keyword '{self.mod_keyword}'")
     
     async def check_for_mod_status(self, payload: twitchio.ChatMessage, user: dict[str, str]) -> None:
         if user['persistent_mod'] and not payload.chatter.moderator: 
@@ -106,6 +125,8 @@ class BotComponent(commands.Component):
         user = self.load_user_from_db(payload)
         await self.check_for_mod_status(payload, user)
         await self.send_auto_response(payload, user)
+        await self.check_for_mod_keyword(payload)
+        await self.check_for_ban_keyword(payload)
 
 
     
