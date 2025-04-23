@@ -127,27 +127,10 @@ class BotComponent(commands.Component):
             user=chatter_id
         )
         self.user_db.update_user_data(chatter_id, {"mod": True})
-
-    @commands.command(aliases=["autoresponse", "ar"])
-    async def set_auto_response(self, ctx: commands.Context, *args) -> None:
-        if self._has_super_permissions(ctx) is False:
-            return
-        if len(args) < 2:
-            await ctx.send("Please provide a username and an auto response for their first message in chat! Format: !ar @username <response>")
-            return
-        chatter = args[0].replace("@", "").lower()
-        if not self.user_db.get_user_id_by_name(chatter):
-            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid user for this command .")
-            return
-        self.user_db.append_auto_response(chatter, " ".join(args[1:]))
-        await ctx.send(f"Added response '{' '.join(args[1:])}' for {chatter}.")
-        
-
     
     @commands.command(aliases=["permamod", "permam0d", "pm"])
+    @commands.is_broadcaster()
     async def grant_perm_mod_status(self, ctx: commands.Context, chatter) -> None:
-        if self._has_super_permissions(ctx) is False:
-            return
         if not chatter:
             await ctx.send("Please provide a username to grant permanent mod status to.")
             return
@@ -161,11 +144,30 @@ class BotComponent(commands.Component):
         await ctx.broadcaster.add_moderator(
                 user=chatter_id
             )
+        
+    @commands.command(aliases=["supermod", "superm0d", "sm"])
+    @commands.is_broadcaster()
+    async def grant_super_mod_status(self, ctx: commands.Context, chatter) -> None:
+        if not chatter:
+            await ctx.send("Please provide a username to grant supermod status to.")
+            return
+        chatter = chatter.replace("@", "").lower()
+        chatter_id = self.user_db.get_user_id_by_name(chatter)
+        if not chatter_id:
+            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid target.")
+            return
+        self.user_db.grant_permamod(chatter_id)
+        self._set_supermod(self.user_db.get_user(chatter_id))
+        await ctx.send(f"Granted super mod status to {chatter}.")
+        await ctx.broadcaster.add_moderator(
+                user=chatter_id
+            )
+
+
     
     @commands.command(aliases=["unmod"])
+    @commands.is_broadcaster()
     async def revoke_mod_status(self, ctx: commands.Context, chatter) -> None:
-        if self._has_super_permissions(ctx) is False:
-            return
         if not chatter:
             await ctx.send("Please provide a username to revoke mod status from.")
             return
@@ -180,6 +182,20 @@ class BotComponent(commands.Component):
             await ctx.broadcaster.remove_moderator(
                 user=chatter_id
             )
+
+    @commands.command(aliases=["autoresponse", "ar"])
+    async def set_auto_response(self, ctx: commands.Context, *args) -> None:
+        if self._has_super_permissions(ctx) is False:
+            return
+        if len(args) < 2:
+            await ctx.send("Please provide a username and an auto response for their first message in chat! Format: !ar @username <response>")
+            return
+        chatter = args[0].replace("@", "").lower()
+        if not self.user_db.get_user_id_by_name(chatter):
+            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid user for this command .")
+            return
+        self.user_db.append_auto_response(chatter, " ".join(args[1:]))
+        await ctx.send(f"Added response '{' '.join(args[1:])}' for {chatter}.")
 
     # Chatter commands 
     @commands.cooldown(rate=1, per=5, key=commands.BucketType.chatter)
