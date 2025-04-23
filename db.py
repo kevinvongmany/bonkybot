@@ -124,6 +124,13 @@ class UserDatabase(JSONDatabase):
                 user["auto_responses"].append(response)
                 self.save_data()
     
+    def is_supermod(self, user_id) -> bool:
+        # Check if user is a supermod
+        for user in self.data["users"]:
+            if user["id"] == user_id:
+                return user.get("supermod", False)
+        return False
+    
 
 
 class BrickGameDatabase(JSONDatabase):

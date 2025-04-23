@@ -21,6 +21,17 @@ class BotComponent(commands.Component):
         self.bot = bot
 
     
+    def _set_supermod(self, user: dict[str, str]) -> None:
+        if not user.get("supermod"):
+            self.user_db.update_user_data(user["id"], {"supermod": True, "persistent_mod": True})
+            LOGGER.info(f"Granting supermod status to {user['name']}")
+    
+    def _has_super_permissions(self, ctx: commands.Context) -> bool:
+        if not (ctx.chatter.broadcaster or self.user_db.is_supermod(ctx.chatter.id)):
+            LOGGER.info(f"{ctx.chatter.name} lacks permissions to run this command.")
+            return False
+        return True
+
     async def get_current_chatters(self, ctx: commands.Context) -> None:
         chatters = await ctx.broadcaster.fetch_chatters(moderator=OWNER_ID)
         chatters_map = {}
@@ -69,7 +80,6 @@ class BotComponent(commands.Component):
             )
             self.user_db.update_user_data(payload.chatter.id, {"mod": True})
 
-    # hardcoded check for a specific user named "milit0o" with ID "403652194"
     async def send_auto_response(self, payload: twitchio.ChatMessage, user: dict[str, str]) -> None:
         try:
             if (responses:=user.get("auto_responses")):
@@ -84,6 +94,7 @@ class BotComponent(commands.Component):
         finally:
             user['last_message_ts'] = self.user_db.get_current_timestamp()
             self.user_db.update_user_data(payload.chatter.id, user)
+    
 
     # Message events
     @commands.Component.listener()
@@ -100,8 +111,9 @@ class BotComponent(commands.Component):
     
     # Broadcaster Commands 
     @commands.command(aliases=["mod", "m", "m0d"])
-    @commands.is_broadcaster()
     async def grant_mod_status(self, ctx: commands.Context, chatter) -> None:
+        if self._has_super_permissions(ctx) is False:
+            return
         if not chatter:
             await ctx.send("Please provide a username to mod.")
             return
@@ -118,18 +130,24 @@ class BotComponent(commands.Component):
 
     @commands.command(aliases=["autoresponse", "ar"])
     async def set_auto_response(self, ctx: commands.Context, *args) -> None:
+        if self._has_super_permissions(ctx) is False:
+            return
         if len(args) < 2:
             await ctx.send("Please provide a username and an auto response for their first message in chat! Format: !ar @username <response>")
             return
         chatter = args[0].replace("@", "").lower()
+        if not self.user_db.get_user_id_by_name(chatter):
+            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid user for this command .")
+            return
         self.user_db.append_auto_response(chatter, " ".join(args[1:]))
         await ctx.send(f"Added response '{' '.join(args[1:])}' for {chatter}.")
         
 
     
     @commands.command(aliases=["permamod", "permam0d", "pm"])
-    @commands.is_broadcaster()
     async def grant_perm_mod_status(self, ctx: commands.Context, chatter) -> None:
+        if self._has_super_permissions(ctx) is False:
+            return
         if not chatter:
             await ctx.send("Please provide a username to grant permanent mod status to.")
             return
@@ -145,8 +163,9 @@ class BotComponent(commands.Component):
             )
     
     @commands.command(aliases=["unmod"])
-    @commands.is_broadcaster()
     async def revoke_mod_status(self, ctx: commands.Context, chatter) -> None:
+        if self._has_super_permissions(ctx) is False:
+            return
         if not chatter:
             await ctx.send("Please provide a username to revoke mod status from.")
             return
