@@ -1,15 +1,11 @@
-import asyncio
 import logging
 
-import asqlite
 import twitchio
 from twitchio.ext import commands
 import random
 
-import os
-import config
-from datetime import datetime
-from config import OWNER_ID, LOG_PATH, JSON_DB_PATH
+from datetime import datetime, timedelta
+from config import OWNER_ID
 from db import UserDatabase, BrickGameDatabase, DiceGameDatabase
 
 from bot import Bot
@@ -17,12 +13,11 @@ from bot import Bot
 LOGGER: logging.Logger = logging.getLogger("BonkyBot")
 
 class BotComponent(commands.Component):
-    def __init__(self, bot: Bot):
-        # Passing args is not required...
+    def __init__(self, bot: Bot) -> None:
+        # Load database files into memory
         self.user_db = UserDatabase()
         self.brick_db = BrickGameDatabase()
         self.dice_db = DiceGameDatabase()
-        # We pass bot here as an example...
         self.bot = bot
 
     
@@ -150,7 +145,7 @@ class BotComponent(commands.Component):
                         reason="Brick roulette victim"
                         )
                     return
-        if target.lower() == ctx.broadcaster.name:
+        if ctx.broadcaster.name in target.lower():
             await ctx.send(f"{ctx.chatter.name} just threw a brick at {ctx.broadcaster.name} and will now be timed out!")
             await ctx.channel.timeout_user(
                 moderator=OWNER_ID, 
@@ -228,7 +223,7 @@ class BotComponent(commands.Component):
         # others may not want your bot randomly sending messages...
         await payload.broadcaster.send_message(
             sender=self.bot.bot_id,
-            message=f"Hi... {payload.broadcaster}! You are live!",
+            message=f"{payload.broadcaster} has gone live!",
         )
 
 
