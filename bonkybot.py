@@ -123,7 +123,8 @@ class BotComponent(commands.Component):
                 user=chatter_id
             )
 
-
+    # Chatter commands 
+    @commands.cooldown(rate=1, per=5, key=commands.BucketType.chatter)
     @commands.command(aliases=["brick"])
     async def brickroulette(self, ctx: commands.Context, *args) -> None:
         target = ""
@@ -155,7 +156,8 @@ class BotComponent(commands.Component):
                 )
             return
         await ctx.send(self.throw_brick_at_user(ctx.chatter.name, target))
-            
+
+    @commands.cooldown(rate=1, per=5, key=commands.BucketType.chatter)
     @commands.command(aliases=["target"])
     async def brick_target(self, ctx: commands.Context, *args) -> None:
         target = ""
@@ -176,6 +178,7 @@ class BotComponent(commands.Component):
         self.brick_db.set_users_target(ctx.chatter.name, target)
         await ctx.send(f"Set {target} as your target. !brick them to get them timed out!")
 
+    @commands.cooldown(rate=1, per=5, key=commands.BucketType.chatter)
     @commands.command(aliases=["d20"])
     async def roll_dice(self, ctx: commands.Context) -> None:
         # Roll a dice with the given number of sides...
@@ -201,6 +204,7 @@ class BotComponent(commands.Component):
 
         self.dice_db.add_player(ctx.chatter.name)
     
+    @commands.cooldown(rate=1, per=60, key=commands.BucketType.chatter)
     @commands.command(aliases=["help"])
     async def bonky_help(self, ctx: commands.Context) -> None:
         # Display a list of commands...
@@ -208,6 +212,7 @@ class BotComponent(commands.Component):
             f"Viewer commands: !brick, !d20, !help. Broadcaster commands: !mod/!m/!m0d, !unmod/!um/!unm0d, !permamod/!pm/!permam0d. Please message @bonksolid on discord to report bugs or request features."
         )
 
+    @commands.cooldown(rate=1, per=60, key=commands.BucketType.chatter)
     @commands.command(aliases=["commands"])
     async def bonky_commands(self, ctx: commands.Context) -> None:
         # Display a list of commands...
