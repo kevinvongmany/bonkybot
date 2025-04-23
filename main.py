@@ -24,23 +24,25 @@ class BonkyBotApp(customtkinter.CTk, AsyncCTk):
         self.wm_iconbitmap()
         self.iconphoto(False, self.iconpath)
         self.resizable(False, False)
-        self.title_label = customtkinter.CTkLabel(self, text="Bonky Bot", font=("Roberto", 35))
+        self.title_font = customtkinter.CTkFont(family="Roboto", size=35)
+        self.main_font = customtkinter.CTkFont(family="Roboto", size=15)
+        self.title_label = customtkinter.CTkLabel(self, text="Bonky Bot", font=self.title_font)
         self.title_label.pack(pady=(20, 5))
 
-        self.autoban_label = customtkinter.CTkLabel(self, text="Auto ban keyword", font=("Roberto", 15))
+        self.autoban_label = customtkinter.CTkLabel(self, text="Auto ban keyword", font=self.main_font)
         self.autoban_label.pack(pady=10)
-        self.autoban_input = customtkinter.CTkEntry(self, placeholder_text="Keyword", width=200)
+        self.autoban_input = customtkinter.CTkEntry(self, placeholder_text="Keyword", width=200, font=self.main_font)
         self.autoban_input.pack(pady=(0,10))
 
-        self.automod_label = customtkinter.CTkLabel(self, text="Auto mod keyword", font=("Roberto", 15))
+        self.automod_label = customtkinter.CTkLabel(self, text="Auto mod keyword", font=self.main_font)
         self.automod_label.pack(pady=10)
-        self.automod_input = customtkinter.CTkEntry(self, placeholder_text="Keyword", width=200)
+        self.automod_input = customtkinter.CTkEntry(self, placeholder_text="Keyword", width=200, font=self.main_font)
         self.automod_input.pack(pady=(0,10))
 
-        self.launch_button = customtkinter.CTkButton(self, text="LAUNCH BOT", command=self.launch_bot)
+        self.launch_button = customtkinter.CTkButton(self, text="LAUNCH BOT", command=self.launch_bot, font=self.main_font)
         self.launch_button.pack(pady=(30,10))
 
-        self.open_config_button = customtkinter.CTkButton(self, text="CONFIG FOLDER", command=self.open_config)
+        self.open_config_button = customtkinter.CTkButton(self, text="CONFIG FOLDER", command=self.open_config, font=self.main_font)
         self.open_config_button.pack(pady=10)
 
     def launch_bot(self):
@@ -49,9 +51,11 @@ class BonkyBotApp(customtkinter.CTk, AsyncCTk):
             fg_color="red", 
             hover_color="brown", 
             text_color="white", 
-            text="Close Bot", 
+            text="CLOSE BOT", 
             command=self.quit_app
         )
+        self.autoban_input.configure(state="disabled")
+        self.automod_input.configure(state="disabled")
 
     def open_config(self):
         # Open the config file in the default text editor
