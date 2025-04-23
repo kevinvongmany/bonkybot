@@ -50,14 +50,14 @@ class BotComponent(commands.Component):
         args = [arg.replace(u"\U000E0000", "").replace("@", "").strip() for arg in args]
         return [arg.lower() for arg in args if arg]
     
-    
-    # We use a listener in our Component to display the messages received.
-    @commands.Component.listener()
-    async def event_message(self, payload: twitchio.ChatMessage) -> None:
-        print(f"[{payload.broadcaster.name}] - {payload.chatter.name}: {payload.text}")
+    def load_user_from_db(self, payload: twitchio.ChatMessage) -> dict[str, str]:
         user = self.user_db.get_user(payload.chatter.id)
         if not user or user["name"] != payload.chatter.name:
             user = self.user_db.update_current_chatter(payload)
+        return user
+    
+    
+    async def check_for_mod_status(self, payload: twitchio.ChatMessage, user: dict[str, str]) -> None:
         if user['persistent_mod'] and not payload.chatter.moderator: 
             await payload.broadcaster.send_message(
                 sender=self.bot.bot_id,
@@ -68,8 +68,37 @@ class BotComponent(commands.Component):
                 user=payload.chatter.id
             )
             self.user_db.update_user_data(payload.chatter.id, {"mod": True})
-            
 
+    # hardcoded check for a specific user named "milit0o" with ID "403652194"
+    async def send_auto_response(self, payload: twitchio.ChatMessage, user: dict[str, str]) -> None:
+        try:
+            if (responses:=user.get("auto_responses")):
+                last_msg_dt = datetime.fromtimestamp(user.get("last_message_ts"))
+                if datetime.now() - last_msg_dt < timedelta(minutes=10):
+                    return
+                random_message = random.choice(responses)
+                await payload.broadcaster.send_message(
+                    sender=self.bot.bot_id,
+                    message=f"{payload.chatter.mention} {random_message}",
+                )
+        finally:
+            user['last_message_ts'] = self.user_db.get_current_timestamp()
+            self.user_db.update_user_data(payload.chatter.id, user)
+
+    # Message events
+    @commands.Component.listener()
+    async def event_message(self, payload: twitchio.ChatMessage) -> None:
+        # display all messages in the terminal
+        timestamp = datetime.now().strftime("%H:%M:%S.%f")
+        print(f"[{timestamp}] [{payload.broadcaster.name}] - {payload.chatter.name}: {payload.text}")
+
+        user = self.load_user_from_db(payload)
+        await self.check_for_mod_status(payload, user)
+        await self.send_auto_response(payload, user)
+
+
+    
+    # Broadcaster Commands 
     @commands.command(aliases=["mod", "m", "m0d"])
     @commands.is_broadcaster()
     async def grant_mod_status(self, ctx: commands.Context, chatter) -> None:
@@ -86,6 +115,16 @@ class BotComponent(commands.Component):
             user=chatter_id
         )
         self.user_db.update_user_data(chatter_id, {"mod": True})
+
+    @commands.command(aliases=["autoresponse", "ar"])
+    async def set_auto_response(self, ctx: commands.Context, *args) -> None:
+        if len(args) < 2:
+            await ctx.send("Please provide a username and an auto response for their first message in chat! Format: !ar @username <response>")
+            return
+        chatter = args[0].replace("@", "").lower()
+        self.user_db.append_auto_response(chatter, " ".join(args[1:]))
+        await ctx.send(f"Added response '{' '.join(args[1:])}' for {chatter}.")
+        
 
     
     @commands.command(aliases=["permamod", "permam0d", "pm"])
