@@ -9,10 +9,12 @@ from config import CLIENT_ID, CLIENT_SECRET, BOT_ID, OWNER_ID
 LOGGER: logging.Logger = logging.getLogger("BotLaunch")
 
 class Bot(commands.Bot):
-    def __init__(self, *, token_database: asqlite.Pool, bot_component=None, configured: bool = True) -> None:
+    def __init__(self, *, token_database: asqlite.Pool, bot_component=None, configured: bool = True, ban_keyword: str = "", mod_keyword: str = "") -> None:
         self.bot_component = bot_component
         self.token_database = token_database
         self.configured = configured
+        self.ban_keyword = ban_keyword
+        self.mod_keyword = mod_keyword
         super().__init__(
             client_id=CLIENT_ID,
             client_secret=CLIENT_SECRET,
@@ -25,7 +27,7 @@ class Bot(commands.Bot):
         if not self.configured:
             return
         # Add our component which contains our commands...
-        await self.add_component(self.bot_component(self))
+        await self.add_component(self.bot_component(self, ban_keyword=self.ban_keyword, mod_keyword=self.mod_keyword))
 
         # Subscribe to read chat (event_message) from our channel as the bot...
         # This creates and opens a websocket to Twitch EventSub...

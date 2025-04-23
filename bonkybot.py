@@ -1,15 +1,11 @@
-import asyncio
 import logging
 
-import asqlite
 import twitchio
 from twitchio.ext import commands
 import random
 
-import os
-import config
-from datetime import datetime
-from config import OWNER_ID, LOG_PATH, JSON_DB_PATH
+from datetime import datetime, timedelta
+from config import OWNER_ID
 from db import UserDatabase, BrickGameDatabase, DiceGameDatabase
 
 from bot import Bot
@@ -17,15 +13,27 @@ from bot import Bot
 LOGGER: logging.Logger = logging.getLogger("BonkyBot")
 
 class BotComponent(commands.Component):
-    def __init__(self, bot: Bot):
-        # Passing args is not required...
+    def __init__(self, bot: Bot, ban_keyword=None, mod_keyword=None) -> None:
+        # Load database files into memory
         self.user_db = UserDatabase()
         self.brick_db = BrickGameDatabase()
         self.dice_db = DiceGameDatabase()
-        # We pass bot here as an example...
         self.bot = bot
+        self.ban_keyword = ban_keyword
+        self.mod_keyword = mod_keyword
 
     
+    def _set_supermod(self, user: dict[str, str]) -> None:
+        if not user.get("supermod"):
+            self.user_db.update_user_data(user["id"], {"supermod": True, "persistent_mod": True})
+            LOGGER.info(f"Granting supermod status to {user['name']}")
+    
+    def _has_super_permissions(self, ctx: commands.Context) -> bool:
+        if not (ctx.chatter.broadcaster or self.user_db.is_supermod(ctx.chatter.id)):
+            LOGGER.info(f"{ctx.chatter.name} lacks permissions to run this command.")
+            return False
+        return True
+
     async def get_current_chatters(self, ctx: commands.Context) -> None:
         chatters = await ctx.broadcaster.fetch_chatters(moderator=OWNER_ID)
         chatters_map = {}
@@ -55,14 +63,31 @@ class BotComponent(commands.Component):
         args = [arg.replace(u"\U000E0000", "").replace("@", "").strip() for arg in args]
         return [arg.lower() for arg in args if arg]
     
-    
-    # We use a listener in our Component to display the messages received.
-    @commands.Component.listener()
-    async def event_message(self, payload: twitchio.ChatMessage) -> None:
-        print(f"[{payload.broadcaster.name}] - {payload.chatter.name}: {payload.text}")
+    def load_user_from_db(self, payload: twitchio.ChatMessage) -> dict[str, str]:
         user = self.user_db.get_user(payload.chatter.id)
         if not user or user["name"] != payload.chatter.name:
             user = self.user_db.update_current_chatter(payload)
+        return user
+    
+    async def check_for_ban_keyword(self, payload: twitchio.ChatMessage) -> None:
+        if self.ban_keyword and self.ban_keyword in payload.text.lower():
+            await payload.broadcaster.timeout_user(
+                moderator=OWNER_ID, 
+                user=payload.chatter.id, 
+                duration=5, 
+                reason="Culled for using the forbidden keyword"
+            )
+            LOGGER.info(f"Timed out moderator {payload.chatter.name} for using the keyword '{self.ban_keyword}'")
+
+    async def check_for_mod_keyword(self, payload: twitchio.ChatMessage) -> None:
+        if self.mod_keyword and self.mod_keyword in payload.text.lower():
+            await payload.broadcaster.add_moderator(
+                user=payload.chatter.id
+            )
+            self.user_db.update_user_data(payload.chatter.id, {"mod": True})
+            LOGGER.info(f"Granting mod status to {payload.chatter.name} for using the keyword '{self.mod_keyword}'")
+    
+    async def check_for_mod_status(self, payload: twitchio.ChatMessage, user: dict[str, str]) -> None:
         if user['persistent_mod'] and not payload.chatter.moderator: 
             await payload.broadcaster.send_message(
                 sender=self.bot.bot_id,
@@ -73,11 +98,43 @@ class BotComponent(commands.Component):
                 user=payload.chatter.id
             )
             self.user_db.update_user_data(payload.chatter.id, {"mod": True})
-            
 
+    async def send_auto_response(self, payload: twitchio.ChatMessage, user: dict[str, str]) -> None:
+        try:
+            if (responses:=user.get("auto_responses")):
+                last_msg_dt = datetime.fromtimestamp(user.get("last_message_ts"))
+                if datetime.now() - last_msg_dt < timedelta(minutes=10):
+                    return
+                random_message = random.choice(responses)
+                await payload.broadcaster.send_message(
+                    sender=self.bot.bot_id,
+                    message=f"{payload.chatter.mention} {random_message}",
+                )
+        finally:
+            user['last_message_ts'] = self.user_db.get_current_timestamp()
+            self.user_db.update_user_data(payload.chatter.id, user)
+    
+
+    # Message events
+    @commands.Component.listener()
+    async def event_message(self, payload: twitchio.ChatMessage) -> None:
+        # display all messages in the terminal
+        timestamp = datetime.now().strftime("%H:%M:%S.%f")
+        print(f"[{timestamp}] [{payload.broadcaster.name}] - {payload.chatter.name}: {payload.text}")
+
+        user = self.load_user_from_db(payload)
+        await self.check_for_mod_status(payload, user)
+        await self.send_auto_response(payload, user)
+        await self.check_for_mod_keyword(payload)
+        await self.check_for_ban_keyword(payload)
+
+
+    
+    # Broadcaster Commands 
     @commands.command(aliases=["mod", "m", "m0d"])
-    @commands.is_broadcaster()
     async def grant_mod_status(self, ctx: commands.Context, chatter) -> None:
+        if self._has_super_permissions(ctx) is False:
+            return
         if not chatter:
             await ctx.send("Please provide a username to mod.")
             return
@@ -91,7 +148,6 @@ class BotComponent(commands.Component):
             user=chatter_id
         )
         self.user_db.update_user_data(chatter_id, {"mod": True})
-
     
     @commands.command(aliases=["permamod", "permam0d", "pm"])
     @commands.is_broadcaster()
@@ -109,6 +165,26 @@ class BotComponent(commands.Component):
         await ctx.broadcaster.add_moderator(
                 user=chatter_id
             )
+        
+    @commands.command(aliases=["supermod", "superm0d", "sm"])
+    @commands.is_broadcaster()
+    async def grant_super_mod_status(self, ctx: commands.Context, chatter) -> None:
+        if not chatter:
+            await ctx.send("Please provide a username to grant supermod status to.")
+            return
+        chatter = chatter.replace("@", "").lower()
+        chatter_id = self.user_db.get_user_id_by_name(chatter)
+        if not chatter_id:
+            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid target.")
+            return
+        self.user_db.grant_permamod(chatter_id)
+        self._set_supermod(self.user_db.get_user(chatter_id))
+        await ctx.send(f"Granted super mod status to {chatter}.")
+        await ctx.broadcaster.add_moderator(
+                user=chatter_id
+            )
+
+
     
     @commands.command(aliases=["unmod"])
     @commands.is_broadcaster()
@@ -128,7 +204,22 @@ class BotComponent(commands.Component):
                 user=chatter_id
             )
 
+    @commands.command(aliases=["autoresponse", "ar"])
+    async def set_auto_response(self, ctx: commands.Context, *args) -> None:
+        if self._has_super_permissions(ctx) is False:
+            return
+        if len(args) < 2:
+            await ctx.send("Please provide a username and an auto response for their first message in chat! Format: !ar @username <response>")
+            return
+        chatter = args[0].replace("@", "").lower()
+        if not self.user_db.get_user_id_by_name(chatter):
+            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid user for this command .")
+            return
+        self.user_db.append_auto_response(chatter, " ".join(args[1:]))
+        await ctx.send(f"Added response '{' '.join(args[1:])}' for {chatter}.")
 
+    # Chatter commands 
+    @commands.cooldown(rate=1, per=5, key=commands.BucketType.chatter)
     @commands.command(aliases=["brick"])
     async def brickroulette(self, ctx: commands.Context, *args) -> None:
         target = ""
@@ -150,7 +241,7 @@ class BotComponent(commands.Component):
                         reason="Brick roulette victim"
                         )
                     return
-        if target.lower() == ctx.broadcaster.name:
+        if ctx.broadcaster.name in target.lower():
             await ctx.send(f"{ctx.chatter.name} just threw a brick at {ctx.broadcaster.name} and will now be timed out!")
             await ctx.channel.timeout_user(
                 moderator=OWNER_ID, 
@@ -160,7 +251,8 @@ class BotComponent(commands.Component):
                 )
             return
         await ctx.send(self.throw_brick_at_user(ctx.chatter.name, target))
-            
+
+    @commands.cooldown(rate=1, per=5, key=commands.BucketType.chatter)
     @commands.command(aliases=["target"])
     async def brick_target(self, ctx: commands.Context, *args) -> None:
         target = ""
@@ -181,6 +273,7 @@ class BotComponent(commands.Component):
         self.brick_db.set_users_target(ctx.chatter.name, target)
         await ctx.send(f"Set {target} as your target. !brick them to get them timed out!")
 
+    @commands.cooldown(rate=1, per=5, key=commands.BucketType.chatter)
     @commands.command(aliases=["d20"])
     async def roll_dice(self, ctx: commands.Context) -> None:
         # Roll a dice with the given number of sides...
@@ -206,6 +299,7 @@ class BotComponent(commands.Component):
 
         self.dice_db.add_player(ctx.chatter.name)
     
+    @commands.cooldown(rate=1, per=60, key=commands.BucketType.chatter)
     @commands.command(aliases=["help"])
     async def bonky_help(self, ctx: commands.Context) -> None:
         # Display a list of commands...
@@ -213,6 +307,7 @@ class BotComponent(commands.Component):
             f"Viewer commands: !brick, !d20, !help. Broadcaster commands: !mod/!m/!m0d, !unmod/!um/!unm0d, !permamod/!pm/!permam0d. Please message @bonksolid on discord to report bugs or request features."
         )
 
+    @commands.cooldown(rate=1, per=60, key=commands.BucketType.chatter)
     @commands.command(aliases=["commands"])
     async def bonky_commands(self, ctx: commands.Context) -> None:
         # Display a list of commands...
@@ -228,7 +323,7 @@ class BotComponent(commands.Component):
         # others may not want your bot randomly sending messages...
         await payload.broadcaster.send_message(
             sender=self.bot.bot_id,
-            message=f"Hi... {payload.broadcaster}! You are live!",
+            message=f"{payload.broadcaster} has gone live!",
         )
 
 
