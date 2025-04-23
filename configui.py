@@ -1,18 +1,29 @@
 import customtkinter
 import asqlite
 import os
+import sys
 from async_tkinter_loop import async_handler
 from async_tkinter_loop.mixins import AsyncCTk
 from config import JSON_DB_PATH, CONFIG_PATH, setup, config
 import webbrowser
+from PIL import ImageTk
 
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 class BonkyBotConfigApp(customtkinter.CTk, AsyncCTk):
     def __init__(self):
         super().__init__()
         self.geometry("750x230")
+        self.iconpath = ImageTk.PhotoImage(file=resource_path("./bb.ico"))
         self.title("Bonky Bot Config")
-        self.wm_iconbitmap("bb.ico")
+        self.wm_iconbitmap()
+        self.iconphoto(False, self.iconpath)
         self.resizable(False, False)
         self.config_label = customtkinter.CTkLabel(self, text="Twitch", font=("Arial", 20))
         self.config_label.grid(row=0, column=0, padx=(10, 30), pady=5)

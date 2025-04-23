@@ -14,12 +14,21 @@ from PIL import ImageTk
 from bot import Bot
 from bonkybot import BotComponent
 
+import sys
+
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 class BonkyBotApp(customtkinter.CTk, AsyncCTk):
     def __init__(self):
         super().__init__()
         self.geometry("300x400")
-        self.iconpath = ImageTk.PhotoImage(file="./bb.ico")
+        self.iconpath = ImageTk.PhotoImage(file=resource_path("./bb.ico"))
         self.title("Bonky Bot")
         self.wm_iconbitmap()
         self.iconphoto(False, self.iconpath)

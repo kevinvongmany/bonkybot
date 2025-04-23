@@ -5,7 +5,7 @@ a = Analysis(
     ['configui.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('bb.ico', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
