@@ -12,6 +12,8 @@ class BonkyBotConfigApp(customtkinter.CTk, AsyncCTk):
         super().__init__()
         self.geometry("750x230")
         self.title("Bonky Bot Config")
+        self.wm_iconbitmap("bb.ico")
+        self.resizable(False, False)
         self.config_label = customtkinter.CTkLabel(self, text="Twitch", font=("Arial", 20))
         self.config_label.grid(row=0, column=0, padx=(10, 30), pady=5)
         self.twitch_client_id_input = customtkinter.CTkEntry(self, placeholder_text="Client ID", width=200)

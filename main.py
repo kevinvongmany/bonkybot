@@ -4,12 +4,12 @@ from async_tkinter_loop.mixins import AsyncCTk
 
 
 import logging
-import config
 import os
 from datetime import datetime
 import asqlite
 from config import JSON_DB_PATH, LOG_PATH, PROGRAM_DATA_DIR
 import twitchio
+from PIL import ImageTk
 
 from bot import Bot
 from bonkybot import BotComponent
@@ -18,23 +18,37 @@ from bonkybot import BotComponent
 class BonkyBotApp(customtkinter.CTk, AsyncCTk):
     def __init__(self):
         super().__init__()
-        self.geometry("300x150")
-        self.title("Bonky Bot App")
-        self.config_label = customtkinter.CTkLabel(self, text="Bonky Bot", font=("Arial", 20))
-        self.config_label.pack(pady=10)
+        self.geometry("300x400")
+        self.iconpath = ImageTk.PhotoImage(file="./bb.ico")
+        self.title("Bonky Bot")
+        self.wm_iconbitmap()
+        self.iconphoto(False, self.iconpath)
+        self.resizable(False, False)
+        self.title_label = customtkinter.CTkLabel(self, text="Bonky Bot", font=("Roberto", 35))
+        self.title_label.pack(pady=(20, 5))
 
-        self.launch_button = customtkinter.CTkButton(self, text="Launch Bonky Bot", command=self.launch_bot)
-        self.launch_button.pack(pady=10)
+        self.autoban_label = customtkinter.CTkLabel(self, text="Auto ban keyword", font=("Roberto", 15))
+        self.autoban_label.pack(pady=10)
+        self.autoban_input = customtkinter.CTkEntry(self, placeholder_text="Keyword", width=200)
+        self.autoban_input.pack(pady=(0,10))
 
-        self.open_config_button = customtkinter.CTkButton(self, text="Open config and log folder", command=self.open_config)
+        self.automod_label = customtkinter.CTkLabel(self, text="Auto mod keyword", font=("Roberto", 15))
+        self.automod_label.pack(pady=10)
+        self.automod_input = customtkinter.CTkEntry(self, placeholder_text="Keyword", width=200)
+        self.automod_input.pack(pady=(0,10))
+
+        self.launch_button = customtkinter.CTkButton(self, text="LAUNCH BOT", command=self.launch_bot)
+        self.launch_button.pack(pady=(30,10))
+
+        self.open_config_button = customtkinter.CTkButton(self, text="CONFIG FOLDER", command=self.open_config)
         self.open_config_button.pack(pady=10)
 
     def launch_bot(self):
-        main()
+        main(ban_keyword=self.autoban_input.get(), mod_keyword=self.automod_input.get())
         self.launch_button.configure(
             fg_color="red", 
             hover_color="brown", 
-            text_color="black", 
+            text_color="white", 
             text="Close Bot", 
             command=self.quit_app
         )
@@ -47,7 +61,7 @@ class BonkyBotApp(customtkinter.CTk, AsyncCTk):
         self.quit()
         self.destroy()
         
-def main() -> None:
+def main(ban_keyword=None, mod_keyword=None) -> None:
     log_file_handler = logging.FileHandler(
         os.path.join(
             LOG_PATH, 
@@ -60,7 +74,12 @@ def main() -> None:
 
     @async_handler
     async def runner() -> None:
-        async with asqlite.create_pool(os.path.join(JSON_DB_PATH, "bonkybot.db")) as tdb, Bot(token_database=tdb, bot_component=BotComponent, configured=True) as bot:
+        async with asqlite.create_pool(os.path.join(JSON_DB_PATH, "bonkybot.db")) as tdb, Bot(token_database=tdb, 
+                                                                                              bot_component=BotComponent, 
+                                                                                              configured=True, 
+                                                                                              ban_keyword=ban_keyword,
+                                                                                              mod_keyword=mod_keyword,
+                                                                                              ) as bot:
             await bot.setup_database()
             await bot.start()
     try:
