@@ -123,8 +123,11 @@ class UserDatabase(JSONDatabase):
             user_data = self.twitch_api.make_request("users", params={"login": username})
             user_id = user_data["data"][0]["id"]
             self.update_user_data(user_id, {"name": username})
-        except (KeyError, IndexError):
-            logger.error(f"Failed to get user ID for {username}: {user_data}")
+        except (KeyError, IndexError) as e:
+            logger.error(f"Failed to get user ID for {username}: {user_data}. Error: {e}")
+            user_id = None
+        except Exception as e:
+            logger.error(f"Error while fetching user ID for {username}: {e}")
             user_id = None
         return user_id
     
