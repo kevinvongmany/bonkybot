@@ -20,14 +20,18 @@ A custom Twitch bot for the community, built with love by BonkyWonky aka Wilfred
 * `!unmod @username` revokes mod and permamod status
 * `!supermod @username` grants supermod status, allows them to use certain commands that are normally restricted to the broadcaster
 * `!addresponse @username <response>` adds a message to respond to the user if they type in chat after 10 minutes.
+* `vip @username` grants vips to the user
 ### Supermod Commands
 * `!mod @username` mods user
 * `!addresponse @username <response>` adds a message to respond to the user if they type in chat after 10 minutes.
+### Mod Commands
+* `so @username` sends a shoutout to the user.
 ### Chatter Commands
 * `!brick` in chat, randomly throws virtual brick at another random viewer, will timeout user if it hits broadcaster
 * `!brick <target>` in chat, throws virtual brick at target, will timeout user if it hits broadcaster
 * `!target @username` will set brick target to nominated username, if successfully hit via `!brick` then they'll timeout the target chatter (target must have been chatting in the channel beforehand)
 * `!d20` randomly rolls a number between 1 - 20, times out user if result is 1, mods user if it's their first result is 20 for the session
+* `time` shows the current time in the broadcaster's timezone
 
 # Setup Instructions
 ## App Setup
