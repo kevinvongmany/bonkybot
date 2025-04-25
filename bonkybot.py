@@ -204,6 +204,35 @@ class BotComponent(commands.Component):
                 user=chatter_id
             )
 
+    @commands.command(aliases=["so"])
+    @commands.is_moderator()
+    async def shoutout(self, ctx: commands.Context, *args) -> None:
+        if not args:
+            await ctx.send("Please provide a username to shoutout.")
+            return
+        target = self.clean_args(ctx.args)[0]
+        target_id = self.user_db.get_user_id_by_name(target)
+        await ctx.send_announcement(f"{target} is an AWESOME streamer! Please give them a follow and check them out at https://www.twitch.tv/{target}")
+        await ctx.broadcaster.send_shoutout(
+            to_broadcaster=target_id,
+            moderator=ctx.chatter.id
+        )
+    
+    @commands.is_elevated()
+    @commands.command(aliases=["vip"])
+    async def grant_vip_status(self, ctx: commands.Context, chatter) -> None:
+        if not chatter:
+            await ctx.send("Please provide a username to grant VIP status to.")
+            return
+        chatter = chatter.replace("@", "").lower()
+        chatter_id = self.user_db.get_user_id_by_name(chatter)
+        if not chatter_id:
+            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid target.")
+            return
+        await ctx.broadcaster.add_vip(
+            user=chatter_id
+        )
+
     @commands.command(aliases=["autoresponse", "ar"])
     async def set_auto_response(self, ctx: commands.Context, *args) -> None:
         if self._has_super_permissions(ctx) is False:
