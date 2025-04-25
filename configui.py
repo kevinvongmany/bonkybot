@@ -47,10 +47,10 @@ class BonkyBotConfigApp(customtkinter.CTk, AsyncCTk):
         self.launch_config_server = customtkinter.CTkButton(self, text="Load auth server and database", command=self.setup)
         self.launch_config_server.grid(row=2, column=1, padx=(10, 30))
 
-        self.launch_auth_button = customtkinter.CTkButton(self, text="Give bot permissions to moderate actions on your behalf", command=self.open_server_webpage)
+        self.launch_auth_button = customtkinter.CTkButton(self, text="Give bot permissions to moderate actions on your behalf", command=self.open_server_webpage, state="disabled")
         self.launch_auth_button.grid(row=3, column=1, padx=(10, 30))
 
-        self.copy_auth_button = customtkinter.CTkButton(self, text="Give bot permissions to send messages", command=self.copy_bot_auth_url)
+        self.copy_auth_button = customtkinter.CTkButton(self, text="Give bot permissions to send messages", command=self.copy_bot_auth_url, state="disabled")
         self.copy_auth_button.grid(row=4, column=1, padx=(10, 30))
 
         self.authenticate_bot_instructions = customtkinter.CTkLabel(self, text="Open a new browser in incognito mode, login to the bot account\n and paste the link into your incognito window", font=("Arial", 15))
@@ -60,8 +60,11 @@ class BonkyBotConfigApp(customtkinter.CTk, AsyncCTk):
     async def setup(self):
         self.launch_config_server.configure(
             text="Server launched",
-            fg_color="green"
+            fg_color="green",
+            state="disabled"
         )
+        self.launch_auth_button.configure(state="normal")
+        self.copy_auth_button.configure(state="normal")
         try:
             from bot import Bot
             async with asqlite.create_pool(os.path.join(JSON_DB_PATH, "bonkybot.db")) as tdb, Bot(token_database=tdb, configured=False) as bot:
@@ -106,6 +109,7 @@ class BonkyBotConfigApp(customtkinter.CTk, AsyncCTk):
         self.clipboard_clear()
         self.clipboard_append(AUTH_URL)
         self.update()
+
 
 if __name__ == "__main__":
     setup()
