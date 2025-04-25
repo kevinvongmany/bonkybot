@@ -5,7 +5,7 @@ from twitchio.ext import commands
 import random
 
 from datetime import datetime, timedelta
-from config import OWNER_ID
+from config import OWNER_ID, BOT_ID
 from db import UserDatabase, BrickGameDatabase, DiceGameDatabase
 
 from bot import Bot
@@ -72,7 +72,7 @@ class BotComponent(commands.Component):
     async def check_for_ban_keyword(self, payload: twitchio.ChatMessage) -> None:
         if self.ban_keyword and self.ban_keyword in payload.text.lower():
             await payload.broadcaster.timeout_user(
-                moderator=OWNER_ID, 
+                moderator=BOT_ID, 
                 user=payload.chatter.id, 
                 duration=5, 
                 reason="Culled for using the forbidden keyword"
@@ -235,7 +235,7 @@ class BotComponent(commands.Component):
                 if target_id:
                     await ctx.send(f"{ctx.chatter.name} hit their target {target}! They have been timed out!")
                     await ctx.channel.timeout_user(
-                        moderator=OWNER_ID, 
+                        moderator=BOT_ID, 
                         user=target_id, 
                         duration=5, 
                         reason="Brick roulette victim"
@@ -244,7 +244,7 @@ class BotComponent(commands.Component):
         if ctx.broadcaster.name in target.lower():
             await ctx.send(f"{ctx.chatter.name} just threw a brick at {ctx.broadcaster.name} and will now be timed out!")
             await ctx.channel.timeout_user(
-                moderator=OWNER_ID, 
+                moderator=BOT_ID, 
                 user=ctx.chatter.id, 
                 duration=5, 
                 reason="Lost brick roulette"
@@ -289,7 +289,7 @@ class BotComponent(commands.Component):
         elif random_dice_roll == 1:
             await ctx.send(f"{ctx.chatter.mention} rolls a 1! CRITICAL FAIL!")
             await ctx.channel.timeout_user(
-                moderator=OWNER_ID, 
+                moderator=BOT_ID, 
                 user=ctx.chatter.id, 
                 duration=5, 
                 reason="Rolled a 1"
