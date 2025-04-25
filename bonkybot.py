@@ -298,6 +298,12 @@ class BotComponent(commands.Component):
             await ctx.send(f"{ctx.chatter.mention} rolls a {random_dice_roll}!")
 
         self.dice_db.add_player(ctx.chatter.name)
+
+    @commands.cooldown(rate=1, per=60, key=commands.BucketType.channel)
+    @commands.command(aliases=["time", "currenttime"])
+    async def get_current_time(self, ctx: commands.Context) -> None:
+        current_time = datetime.now().strftime("%I:%M%p")
+        await ctx.send(f"The time is currently {current_time} for {ctx.broadcaster.name}")
     
     @commands.cooldown(rate=1, per=60, key=commands.BucketType.chatter)
     @commands.command(aliases=["help"])
