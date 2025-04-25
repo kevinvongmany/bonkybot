@@ -5,7 +5,7 @@ from twitchio.ext import commands
 import random
 
 from datetime import datetime, timedelta
-from config import OWNER_ID
+from config import OWNER_ID, BOT_ID
 from db import UserDatabase, BrickGameDatabase, DiceGameDatabase
 
 from bot import Bot
@@ -72,7 +72,7 @@ class BotComponent(commands.Component):
     async def check_for_ban_keyword(self, payload: twitchio.ChatMessage) -> None:
         if self.ban_keyword and self.ban_keyword in payload.text.lower():
             await payload.broadcaster.timeout_user(
-                moderator=OWNER_ID, 
+                moderator=BOT_ID, 
                 user=payload.chatter.id, 
                 duration=5, 
                 reason="Culled for using the forbidden keyword"
@@ -141,7 +141,7 @@ class BotComponent(commands.Component):
         chatter = chatter.replace("@", "").lower()
         chatter_id = self.user_db.get_user_id_by_name(chatter)
         if not chatter_id:
-            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid target.")
+            await ctx.send(f"{chatter} does not exist.")
             return
         LOGGER.info(f"Granting mod status to {ctx.chatter.name}")
         await ctx.broadcaster.add_moderator(
@@ -158,7 +158,7 @@ class BotComponent(commands.Component):
         chatter = chatter.replace("@", "").lower()
         chatter_id = self.user_db.get_user_id_by_name(chatter)
         if not chatter_id:
-            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid target.")
+            await ctx.send(f"{chatter} does not exist.")
             return
         self.user_db.grant_permamod(chatter_id)
         await ctx.send(f"Granted permanent mod status to {chatter}.")
@@ -175,7 +175,7 @@ class BotComponent(commands.Component):
         chatter = chatter.replace("@", "").lower()
         chatter_id = self.user_db.get_user_id_by_name(chatter)
         if not chatter_id:
-            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid target.")
+            await ctx.send(f"{chatter} does not exist.")
             return
         self.user_db.grant_permamod(chatter_id)
         self._set_supermod(self.user_db.get_user(chatter_id))
@@ -183,8 +183,6 @@ class BotComponent(commands.Component):
         await ctx.broadcaster.add_moderator(
                 user=chatter_id
             )
-
-
     
     @commands.command(aliases=["unmod"])
     @commands.is_broadcaster()
@@ -195,7 +193,7 @@ class BotComponent(commands.Component):
         chatter = chatter.replace("@", "").lower()
         chatter_id = self.user_db.get_user_id_by_name(chatter)
         if not chatter_id:
-            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid target.")
+            await ctx.send(f"{chatter} does not exist.")
             return
         self.user_db.revoke_mod_status(chatter_id)
         if ctx.chatter.moderator:
@@ -203,6 +201,38 @@ class BotComponent(commands.Component):
             await ctx.broadcaster.remove_moderator(
                 user=chatter_id
             )
+
+    @commands.command(aliases=["so"])
+    @commands.is_moderator()
+    async def shoutout(self, ctx: commands.Context, *args) -> None:
+        if not args:
+            await ctx.send("Please provide a username to shoutout.")
+            return
+        target = self.clean_args(ctx.args)[0]
+        target_id = self.user_db.get_user_id_by_name(target)
+        if not target_id:
+            await ctx.send(f"{target} does not exist.")
+            return
+        await ctx.send_announcement(f"{target} is an AWESOME streamer! Please give them a follow and check them out at https://www.twitch.tv/{target}")
+        await ctx.broadcaster.send_shoutout(
+            to_broadcaster=target_id,
+            moderator=ctx.chatter.id
+        )
+    
+    @commands.is_elevated()
+    @commands.command(aliases=["vip"])
+    async def grant_vip_status(self, ctx: commands.Context, chatter) -> None:
+        if not chatter:
+            await ctx.send("Please provide a username to grant VIP status to.")
+            return
+        chatter = chatter.replace("@", "").lower()
+        chatter_id = self.user_db.get_user_id_by_name(chatter)
+        if not chatter_id:
+            await ctx.send(f"{chatter} does not exist.")
+            return
+        await ctx.broadcaster.add_vip(
+            user=chatter_id
+        )
 
     @commands.command(aliases=["autoresponse", "ar"])
     async def set_auto_response(self, ctx: commands.Context, *args) -> None:
@@ -213,7 +243,7 @@ class BotComponent(commands.Component):
             return
         chatter = args[0].replace("@", "").lower()
         if not self.user_db.get_user_id_by_name(chatter):
-            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid user for this command .")
+            await ctx.send(f"{chatter} does not exist.")
             return
         self.user_db.append_auto_response(chatter, " ".join(args[1:]))
         await ctx.send(f"Added response '{' '.join(args[1:])}' for {chatter}.")
@@ -235,7 +265,7 @@ class BotComponent(commands.Component):
                 if target_id:
                     await ctx.send(f"{ctx.chatter.name} hit their target {target}! They have been timed out!")
                     await ctx.channel.timeout_user(
-                        moderator=OWNER_ID, 
+                        moderator=BOT_ID, 
                         user=target_id, 
                         duration=5, 
                         reason="Brick roulette victim"
@@ -244,7 +274,7 @@ class BotComponent(commands.Component):
         if ctx.broadcaster.name in target.lower():
             await ctx.send(f"{ctx.chatter.name} just threw a brick at {ctx.broadcaster.name} and will now be timed out!")
             await ctx.channel.timeout_user(
-                moderator=OWNER_ID, 
+                moderator=BOT_ID, 
                 user=ctx.chatter.id, 
                 duration=5, 
                 reason="Lost brick roulette"
@@ -289,7 +319,7 @@ class BotComponent(commands.Component):
         elif random_dice_roll == 1:
             await ctx.send(f"{ctx.chatter.mention} rolls a 1! CRITICAL FAIL!")
             await ctx.channel.timeout_user(
-                moderator=OWNER_ID, 
+                moderator=BOT_ID, 
                 user=ctx.chatter.id, 
                 duration=5, 
                 reason="Rolled a 1"
@@ -298,6 +328,12 @@ class BotComponent(commands.Component):
             await ctx.send(f"{ctx.chatter.mention} rolls a {random_dice_roll}!")
 
         self.dice_db.add_player(ctx.chatter.name)
+
+    @commands.cooldown(rate=1, per=60, key=commands.BucketType.channel)
+    @commands.command(aliases=["time", "currenttime"])
+    async def get_current_time(self, ctx: commands.Context) -> None:
+        current_time = datetime.now().strftime("%I:%M%p")
+        await ctx.send(f"The time is currently {current_time} for {ctx.broadcaster.name}")
     
     @commands.cooldown(rate=1, per=60, key=commands.BucketType.chatter)
     @commands.command(aliases=["help"])

@@ -1,7 +1,13 @@
 import json
 import os
-from config import USERS_DB, BRICK_DB, DICE_DB
+from config import USERS_DB, BRICK_DB, DICE_DB, CLIENT_ID, CLIENT_SECRET
 from datetime import datetime
+from twitchapi import TwitchAPI
+
+import logging
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 class JSONDatabase:
     """
@@ -60,12 +66,22 @@ class UserDatabase(JSONDatabase):
 
     def __init__(self):
         super().__init__(USERS_DB, self.DEFAULT_DATA)
+        self.twitch_api = TwitchAPI(CLIENT_ID, CLIENT_SECRET)
+
+    def add_user(self, user_id, payload):
+        self.data["users"].append({
+            "id": user_id,
+            **payload
+        })
+        self.save_data()
 
     def update_user_data(self, user_id, payload):
         for user in self.data["users"]:
             if user["id"] == user_id:
                 user.update(payload)
                 self.save_data()
+                return
+        self.add_user(user_id, payload) # if user didn't exist, add it        
     
     def update_current_chatter(self, payload):
         # Check if user already exists
@@ -102,7 +118,17 @@ class UserDatabase(JSONDatabase):
         for user in self.data["users"]:
             if user["name"] == username:
                 return user["id"]
-        return None
+        try:
+            user_data = self.twitch_api.make_request("users", params={"login": username})
+            user_id = user_data["data"][0]["id"]
+            self.update_user_data(user_id, {"name": username})
+        except (KeyError, IndexError) as e:
+            logger.error(f"Failed to get user ID for {username}: {user_data}. Error: {e}")
+            user_id = None
+        except Exception as e:
+            logger.error(f"Error while fetching user ID for {username}: {e}")
+            user_id = None
+        return user_id
     
     def grant_permamod(self, user_id) -> None:
         self.update_user_data(user_id, {"mod": True, "persistent_mod": True})

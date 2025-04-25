@@ -44,13 +44,13 @@ class BonkyBotConfigApp(customtkinter.CTk, AsyncCTk):
         self.first_time_config_subtitle = customtkinter.CTkLabel(self, text="While logged into your MAIN Twitch account, press these buttons in order", font=("Arial", 15))
         self.first_time_config_subtitle.grid(row=1, column=1, padx=(10, 30), pady=5)
 
-        self.launch_config_server = customtkinter.CTkButton(self, text="Press me first", command=self.setup)
+        self.launch_config_server = customtkinter.CTkButton(self, text="Load auth server and database", command=self.setup)
         self.launch_config_server.grid(row=2, column=1, padx=(10, 30))
 
-        self.launch_auth_button = customtkinter.CTkButton(self, text="Press me second", command=self.open_server_webpage)
+        self.launch_auth_button = customtkinter.CTkButton(self, text="Give bot permissions to moderate actions on your behalf", command=self.open_server_webpage)
         self.launch_auth_button.grid(row=3, column=1, padx=(10, 30))
 
-        self.copy_auth_button = customtkinter.CTkButton(self, text="Press me third", command=self.copy_bot_auth_url)
+        self.copy_auth_button = customtkinter.CTkButton(self, text="Give bot permissions to send messages", command=self.copy_bot_auth_url)
         self.copy_auth_button.grid(row=4, column=1, padx=(10, 30))
 
         self.authenticate_bot_instructions = customtkinter.CTkLabel(self, text="Open a new browser in incognito mode, login to the bot account\n and paste the link into your incognito window", font=("Arial", 15))
@@ -58,6 +58,10 @@ class BonkyBotConfigApp(customtkinter.CTk, AsyncCTk):
 
     @async_handler
     async def setup(self):
+        self.launch_config_server.configure(
+            text="Server launched",
+            fg_color="green"
+        )
         try:
             from bot import Bot
             async with asqlite.create_pool(os.path.join(JSON_DB_PATH, "bonkybot.db")) as tdb, Bot(token_database=tdb, configured=False) as bot:
@@ -93,7 +97,7 @@ class BonkyBotConfigApp(customtkinter.CTk, AsyncCTk):
 
     def open_server_webpage(self):
         # Open the server webpage in the default web browser
-        AUTH_URL = "http://localhost:4343/oauth?scopes=channel:bot%20moderator:read:chatters%20channel:manage:moderators%20channel:manage:vips%20moderator:manage:shoutouts%20moderator:manage:banned_users"
+        AUTH_URL = "http://localhost:4343/oauth?scopes=channel:bot%20moderator:read:chatters%20channel:manage:moderators%20channel:manage:vips%20moderator:manage:shoutouts%20moderator:manage:banned_users%20moderator:manage:announcements"
         webbrowser.open_new_tab(AUTH_URL)
 
     def copy_bot_auth_url(self):
