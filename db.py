@@ -68,12 +68,21 @@ class UserDatabase(JSONDatabase):
         super().__init__(USERS_DB, self.DEFAULT_DATA)
         self.twitch_api = TwitchAPI(CLIENT_ID, CLIENT_SECRET)
 
+    def add_user(self, user_id, payload):
+        self.data["users"].append({
+            "id": user_id,
+            **payload
+        })
+        self.save_data()
 
     def update_user_data(self, user_id, payload):
         for user in self.data["users"]:
             if user["id"] == user_id:
                 user.update(payload)
                 self.save_data()
+                return
+        self.add_user(user_id, payload) # if user didn't exist, add it        
+        self.save_data()
     
     def update_current_chatter(self, payload):
         # Check if user already exists
@@ -113,6 +122,7 @@ class UserDatabase(JSONDatabase):
         try:
             user_data = self.twitch_api.make_request("users", params={"login": username})
             user_id = user_data["data"][0]["id"]
+            self.update_user_data(user_id, {"name": username})
         except (KeyError, IndexError):
             logger.error(f"Failed to get user ID for {username}: {user_data}")
             user_id = None

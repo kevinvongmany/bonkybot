@@ -141,7 +141,7 @@ class BotComponent(commands.Component):
         chatter = chatter.replace("@", "").lower()
         chatter_id = self.user_db.get_user_id_by_name(chatter)
         if not chatter_id:
-            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid target.")
+            await ctx.send(f"{chatter} does not exist.")
             return
         LOGGER.info(f"Granting mod status to {ctx.chatter.name}")
         await ctx.broadcaster.add_moderator(
@@ -158,7 +158,7 @@ class BotComponent(commands.Component):
         chatter = chatter.replace("@", "").lower()
         chatter_id = self.user_db.get_user_id_by_name(chatter)
         if not chatter_id:
-            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid target.")
+            await ctx.send(f"{chatter} does not exist.")
             return
         self.user_db.grant_permamod(chatter_id)
         await ctx.send(f"Granted permanent mod status to {chatter}.")
@@ -175,7 +175,7 @@ class BotComponent(commands.Component):
         chatter = chatter.replace("@", "").lower()
         chatter_id = self.user_db.get_user_id_by_name(chatter)
         if not chatter_id:
-            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid target.")
+            await ctx.send(f"{chatter} does not exist.")
             return
         self.user_db.grant_permamod(chatter_id)
         self._set_supermod(self.user_db.get_user(chatter_id))
@@ -183,8 +183,6 @@ class BotComponent(commands.Component):
         await ctx.broadcaster.add_moderator(
                 user=chatter_id
             )
-
-
     
     @commands.command(aliases=["unmod"])
     @commands.is_broadcaster()
@@ -195,7 +193,7 @@ class BotComponent(commands.Component):
         chatter = chatter.replace("@", "").lower()
         chatter_id = self.user_db.get_user_id_by_name(chatter)
         if not chatter_id:
-            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid target.")
+            await ctx.send(f"{chatter} does not exist.")
             return
         self.user_db.revoke_mod_status(chatter_id)
         if ctx.chatter.moderator:
@@ -212,6 +210,9 @@ class BotComponent(commands.Component):
             return
         target = self.clean_args(ctx.args)[0]
         target_id = self.user_db.get_user_id_by_name(target)
+        if not target_id:
+            await ctx.send(f"{target} does not exist.")
+            return
         await ctx.send_announcement(f"{target} is an AWESOME streamer! Please give them a follow and check them out at https://www.twitch.tv/{target}")
         await ctx.broadcaster.send_shoutout(
             to_broadcaster=target_id,
@@ -227,7 +228,7 @@ class BotComponent(commands.Component):
         chatter = chatter.replace("@", "").lower()
         chatter_id = self.user_db.get_user_id_by_name(chatter)
         if not chatter_id:
-            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid target.")
+            await ctx.send(f"{chatter} does not exist.")
             return
         await ctx.broadcaster.add_vip(
             user=chatter_id
@@ -242,7 +243,7 @@ class BotComponent(commands.Component):
             return
         chatter = args[0].replace("@", "").lower()
         if not self.user_db.get_user_id_by_name(chatter):
-            await ctx.send(f"{chatter} is not a valid user. They must have chatted at least once to be a valid user for this command .")
+            await ctx.send(f"{chatter} does not exist.")
             return
         self.user_db.append_auto_response(chatter, " ".join(args[1:]))
         await ctx.send(f"Added response '{' '.join(args[1:])}' for {chatter}.")
