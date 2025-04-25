@@ -82,7 +82,6 @@ class UserDatabase(JSONDatabase):
                 self.save_data()
                 return
         self.add_user(user_id, payload) # if user didn't exist, add it        
-        self.save_data()
     
     def update_current_chatter(self, payload):
         # Check if user already exists
