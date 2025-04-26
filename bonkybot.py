@@ -1,13 +1,11 @@
 import logging
-
 import twitchio
-from twitchio.ext import commands
 import random
 
+from twitchio.ext import commands
 from datetime import datetime, timedelta
 from config import OWNER_ID
 from db import UserDatabase, BrickGameDatabase, DiceGameDatabase
-
 from bot import Bot
 
 LOGGER: logging.Logger = logging.getLogger("BonkyBot")
