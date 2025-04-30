@@ -119,7 +119,7 @@ class BotComponent(commands.Component):
         # display all messages in the terminal
         timestamp = datetime.now().strftime("%H:%M:%S.%f")
         print(f"[{timestamp}] [{payload.broadcaster.name}] - {payload.chatter.name}: {payload.text}")
-        if(payload.broadcaster.id == OWNER_ID): # stops bot from moderating other channels (shared chat workaround)
+        if(payload.source_broadcaster == None or payload.source_broadcaster.id == OWNER_ID): # stops bot from moderating other channels (shared chat workaround)
             user = self.load_user_from_db(payload)
             await self.check_for_mod_status(payload, user)
             await self.send_auto_response(payload, user)
