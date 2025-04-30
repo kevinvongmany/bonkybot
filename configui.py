@@ -47,7 +47,7 @@ class BonkyBotConfigApp(customtkinter.CTk, AsyncCTk):
         self.launch_config_server = customtkinter.CTkButton(self, text="Load auth server and database", command=self.setup)
         self.launch_config_server.grid(row=2, column=1, padx=(10, 30))
 
-        self.launch_auth_button = customtkinter.CTkButton(self, text="Give bot permissions to moderate actions on your behalf", command=self.open_server_webpage, state="disabled")
+        self.launch_auth_button = customtkinter.CTkButton(self, text="Give bot permissions to moderate actions on your behalf", command=self.authenticate_bot, state="disabled")
         self.launch_auth_button.grid(row=3, column=1, padx=(10, 30))
 
         self.copy_auth_button = customtkinter.CTkButton(self, text="Give bot permissions to send messages", command=self.copy_bot_auth_url, state="disabled")
@@ -98,13 +98,34 @@ class BonkyBotConfigApp(customtkinter.CTk, AsyncCTk):
         print("Config file updated, please close and restart this app for changes to take effect.")
 
 
-    def open_server_webpage(self):
+    def authenticate_bot(self):
         # Open the server webpage in the default web browser
-        AUTH_URL = "http://localhost:4343/oauth?scopes=channel:bot%20moderator:read:chatters%20channel:manage:moderators%20channel:manage:vips%20moderator:manage:shoutouts%20moderator:manage:banned_users%20moderator:manage:announcements"
+        perms = [
+            "user:read:follows",
+            "channel:bot",
+            "channel:read:subscriptions",
+            "channel:read:ads",
+            "channel:manage:vips",
+            "channel:manage:moderators",
+            "moderator:read:chatters",
+            "moderator:read:followers",
+            "moderator:manage:shoutouts",
+            "moderator:manage:banned_users",
+            "moderator:manage:announcements",
+        ]
+        q_string = "%20".join(perms)
+        AUTH_URL = f"http://localhost:4343/oauth?scopes={q_string}"
         webbrowser.open_new_tab(AUTH_URL)
 
     def copy_bot_auth_url(self):
-        AUTH_URL = "http://localhost:4343/oauth?scopes=user:read:chat%20user:write:chat%20user:bot"
+        perms = [
+            "user:read:follows",
+            "user:read:chat",
+            "user:write:chat",
+            "user:bot",
+            "moderator:read:followers",
+        ]
+        AUTH_URL = f"http://localhost:4343/oauth?scopes={'%20'.join(perms)}"
         # Copy the URL to the clipboard
         self.clipboard_clear()
         self.clipboard_append(AUTH_URL)
