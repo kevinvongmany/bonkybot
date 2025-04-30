@@ -87,10 +87,6 @@ class BotComponent(commands.Component):
     
     async def check_for_mod_status(self, payload: twitchio.ChatMessage, user: dict[str, str]) -> None:
         if user['persistent_mod'] and not payload.chatter.moderator: 
-            await payload.broadcaster.send_message(
-                sender=self.bot.bot_id,
-                message=f"{payload.chatter.mention} you're supposed to be a moderator, but you're not. I will fix that for you!",
-            )
             LOGGER.info(f"Granting mod status to {payload.chatter.name}")
             await payload.broadcaster.add_moderator(
                 user=payload.chatter.id
