@@ -78,7 +78,7 @@ class BotComponent(commands.Component):
             LOGGER.info(f"Timed out moderator {payload.chatter.name} for using the keyword '{ban_keyword}'")
 
     async def check_for_mod_keyword(self, payload: twitchio.ChatMessage) -> None:
-        if self.minigame_db.get_mod_game_status():
+        if self.minigame_db.get_mod_game_status() or payload.chatter.moderator:
             return
         mod_keyword = self.minigame_db.get_mod_keyword()
         if mod_keyword and mod_keyword in payload.text.lower():
