@@ -8,6 +8,7 @@ import logging
 import os
 import asqlite
 from config import JSON_DB_PATH, LOG_PATH, PROGRAM_DATA_DIR
+from db import MiniGameDatabase
 import twitchio
 from PIL import ImageTk
 
@@ -27,12 +28,13 @@ def resource_path(relative_path):
 class BonkyBotApp(customtkinter.CTk, AsyncCTk):
     def __init__(self):
         super().__init__()
-        self.geometry("300x400")
+        self.geometry("300x450")
         self.iconpath = ImageTk.PhotoImage(file=resource_path("./bb.ico"))
         self.title("Bonky Bot")
         self.wm_iconbitmap()
         self.iconphoto(False, self.iconpath)
         self.resizable(False, False)
+        self.minigame_db = MiniGameDatabase()
         self.title_font = customtkinter.CTkFont(family="Roboto", size=35)
         self.main_font = customtkinter.CTkFont(family="Roboto", size=15)
         self.title_label = customtkinter.CTkLabel(self, text="Bonky Bot", font=self.title_font)
@@ -42,11 +44,16 @@ class BonkyBotApp(customtkinter.CTk, AsyncCTk):
         self.autoban_label.pack(pady=10)
         self.autoban_input = customtkinter.CTkEntry(self, placeholder_text="Keyword", width=200, font=self.main_font)
         self.autoban_input.pack(pady=(0,10))
+        self.autoban_update_button = customtkinter.CTkButton(self, text="Update", command=self.update_autoban_keyword, font=self.main_font, state="disabled")
+        self.autoban_update_button.pack(pady=(0,10))
 
         self.automod_label = customtkinter.CTkLabel(self, text="Auto mod keyword", font=self.main_font)
         self.automod_label.pack(pady=10)
         self.automod_input = customtkinter.CTkEntry(self, placeholder_text="Keyword", width=200, font=self.main_font)
         self.automod_input.pack(pady=(0,10))
+        self.automod_update_button = customtkinter.CTkButton(self, text="Update", command=self.update_automod_keyword, font=self.main_font, state="disabled")
+        self.automod_update_button.pack(pady=(0,10))
+
 
         self.launch_button = customtkinter.CTkButton(self, text="LAUNCH BOT", command=self.launch_bot, font=self.main_font)
         self.launch_button.pack(pady=(30,10))
@@ -55,7 +62,9 @@ class BonkyBotApp(customtkinter.CTk, AsyncCTk):
         self.open_config_button.pack(pady=10)
 
     def launch_bot(self):
-        main(ban_keyword=self.autoban_input.get(), mod_keyword=self.automod_input.get())
+        main()
+        self.update_autoban_keyword()
+        self.update_automod_keyword()
         self.launch_button.configure(
             fg_color="red", 
             hover_color="brown", 
@@ -63,8 +72,17 @@ class BonkyBotApp(customtkinter.CTk, AsyncCTk):
             text="CLOSE BOT", 
             command=self.quit_app
         )
-        self.autoban_input.configure(state="disabled")
-        self.automod_input.configure(state="disabled")
+        self.autoban_update_button.configure(state="normal")
+        self.automod_update_button.configure(state="normal")
+
+
+    def update_autoban_keyword(self):
+        keyword = self.autoban_input.get()
+        self.minigame_db.update_ban_keyword(keyword)
+
+    def update_automod_keyword(self):
+        keyword = self.automod_input.get()
+        self.minigame_db.update_mod_keyword(keyword)
 
     def open_config(self):
         # Open the config file in the default text editor
@@ -74,7 +92,7 @@ class BonkyBotApp(customtkinter.CTk, AsyncCTk):
         self.quit()
         self.destroy()
         
-def main(ban_keyword=None, mod_keyword=None) -> None:
+def main() -> None:
     log_file_handler = logging.handlers.TimedRotatingFileHandler(
         os.path.join(
             LOG_PATH, 
@@ -93,8 +111,6 @@ def main(ban_keyword=None, mod_keyword=None) -> None:
         async with asqlite.create_pool(os.path.join(JSON_DB_PATH, "bonkybot.db")) as tdb, Bot(token_database=tdb, 
                                                                                               bot_component=BotComponent, 
                                                                                               configured=True, 
-                                                                                              ban_keyword=ban_keyword,
-                                                                                              mod_keyword=mod_keyword,
                                                                                               ) as bot:
             await bot.setup_database()
             await bot.start()
