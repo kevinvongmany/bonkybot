@@ -1,6 +1,6 @@
 import json
 import os
-from config import USERS_DB, BRICK_DB, DICE_DB, CLIENT_ID, CLIENT_SECRET
+from config import USERS_DB, BRICK_DB, DICE_DB, MINIGAME_DB, CLIENT_ID, CLIENT_SECRET
 from datetime import datetime
 from twitchapi import TwitchAPI
 
@@ -260,3 +260,59 @@ class DiceGameDatabase(JSONDatabase):
         if username not in data["players_today"]:
             data["players_today"].append(username)
             self.save_data(data)
+
+class MiniGameDatabase(JSONDatabase):
+    """
+    A simple class to manage mini game data in a JSON file.
+    Expected data format:
+    """
+    DEFAULT_DATA = {
+        "ban_game" : {
+            "ban_keyword": "",
+            "timeout_duration": 5,
+        },
+        "mod_game" : {
+            "mod_keyword": "",
+            "is_found": False
+        }
+    }
+
+    def __init__(self):
+        super().__init__(MINIGAME_DB, self.DEFAULT_DATA)
+
+    def get_timeout_duration(self):
+        data = self.load_data()
+        return data["ban_game"]["timeout_duration"]
+    
+    def get_ban_keyword(self):
+        data = self.load_data()
+        return data["ban_game"]["ban_keyword"]
+    
+    def get_mod_keyword(self):
+        data = self.load_data()
+        return data["mod_game"]["mod_keyword"]
+    
+    def get_mod_game_status(self):
+        data = self.load_data()
+        return data["mod_game"]["is_found"]
+
+    def update_ban_keyword(self, keyword):
+        data = self.load_data()
+        data["ban_game"]["ban_keyword"] = keyword
+        self.save_data(data)
+    
+    def update_mod_keyword(self, keyword):
+        data = self.load_data()
+        data["mod_game"]["mod_keyword"] = keyword
+        data["mod_game"]["is_found"] = False
+        self.save_data(data)
+
+    def update_timeout_duration(self, duration):
+        data = self.load_data()
+        data["ban_game"]["timeout_duration"] = duration
+        self.save_data(data)
+
+    def update_mod_game_status(self, status):
+        data = self.load_data()
+        data["mod_game"]["is_found"] = status
+        self.save_data(data)

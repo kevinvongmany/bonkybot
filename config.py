@@ -26,6 +26,9 @@ def setup() -> None:
     if not os.path.exists(DICE_DB):
         with open(DICE_DB, "w") as f:
             f.write("{}")
+    if not os.path.exists(MINIGAME_DB):
+        with open(MINIGAME_DB, "w") as f:
+            f.write("{}")
 config.read(CONFIG_PATH)
 
 if not config.has_section("Twitch"):
@@ -45,5 +48,6 @@ OWNER_ID = config.get("Twitch", "OWNER_ID")  # Your personal User ID..
 USERS_DB = os.path.join(JSON_DB_PATH, "users.json")
 BRICK_DB = os.path.join(JSON_DB_PATH, "bricks.json")
 DICE_DB = os.path.join(JSON_DB_PATH, "dice.json")
+MINIGAME_DB = os.path.join(JSON_DB_PATH, "minigames.json")
 
 setup()
