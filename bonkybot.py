@@ -5,20 +5,19 @@ import random
 from twitchio.ext import commands
 from datetime import datetime, timedelta
 from config import OWNER_ID
-from db import UserDatabase, BrickGameDatabase, DiceGameDatabase
+from db import UserDatabase, BrickGameDatabase, DiceGameDatabase, MiniGameDatabase
 from bot import Bot
 
 LOGGER: logging.Logger = logging.getLogger("BonkyBot")
 
 class BotComponent(commands.Component):
-    def __init__(self, bot: Bot, ban_keyword=None, mod_keyword=None) -> None:
+    def __init__(self, bot: Bot) -> None:
         # Load database files into memory
         self.user_db = UserDatabase()
         self.brick_db = BrickGameDatabase()
         self.dice_db = DiceGameDatabase()
+        self.minigame_db = MiniGameDatabase()
         self.bot = bot
-        self.ban_keyword = ban_keyword
-        self.mod_keyword = mod_keyword
 
     
     def _set_supermod(self, user: dict[str, str]) -> None:
@@ -68,22 +67,30 @@ class BotComponent(commands.Component):
         return user
     
     async def check_for_ban_keyword(self, payload: twitchio.ChatMessage) -> None:
-        if self.ban_keyword and self.ban_keyword in payload.text.lower():
+        ban_keyword = self.minigame_db.get_ban_keyword()
+        if ban_keyword and ban_keyword in payload.text.lower():
             await payload.broadcaster.timeout_user(
                 moderator=OWNER_ID, 
                 user=payload.chatter.id, 
-                duration=5, 
+                duration=self.minigame_db.get_timeout_duration(), 
                 reason="Culled for using the forbidden keyword"
             )
-            LOGGER.info(f"Timed out moderator {payload.chatter.name} for using the keyword '{self.ban_keyword}'")
+            LOGGER.info(f"Timed out moderator {payload.chatter.name} for using the keyword '{ban_keyword}'")
 
     async def check_for_mod_keyword(self, payload: twitchio.ChatMessage) -> None:
-        if self.mod_keyword and self.mod_keyword in payload.text.lower():
+        if self.minigame_db.get_mod_game_status():
+            return
+        mod_keyword = self.minigame_db.get_mod_keyword()
+        if mod_keyword and mod_keyword in payload.text.lower():
             await payload.broadcaster.add_moderator(
                 user=payload.chatter.id
             )
+            await payload.broadcaster.send_message(
+                sender=self.bot.bot_id,
+                message=f"{payload.chatter.mention} has been granted mod status for finding the keyword '{mod_keyword}'!",
+            )
             self.user_db.update_user_data(payload.chatter.id, {"mod": True})
-            LOGGER.info(f"Granting mod status to {payload.chatter.name} for using the keyword '{self.mod_keyword}'")
+            self.minigame_db.update_mod_game_status(True)
     
     async def check_for_mod_status(self, payload: twitchio.ChatMessage, user: dict[str, str]) -> None:
         if user['persistent_mod'] and not payload.chatter.moderator: 
@@ -261,7 +268,7 @@ class BotComponent(commands.Component):
                     await ctx.channel.timeout_user(
                         moderator=OWNER_ID, 
                         user=target_id, 
-                        duration=5, 
+                        duration=self.minigame_db.get_timeout_duration(), 
                         reason="Brick roulette victim"
                         )
                     return
@@ -270,7 +277,7 @@ class BotComponent(commands.Component):
             await ctx.channel.timeout_user(
                 moderator=OWNER_ID, 
                 user=ctx.chatter.id, 
-                duration=5, 
+                duration=self.minigame_db.get_timeout_duration(), 
                 reason="Lost brick roulette"
                 )
             return
@@ -315,7 +322,7 @@ class BotComponent(commands.Component):
             await ctx.channel.timeout_user(
                 moderator=OWNER_ID, 
                 user=ctx.chatter.id, 
-                duration=5, 
+                duration=self.minigame_db.get_timeout_duration(), 
                 reason="Rolled a 1"
                 )
         else:
