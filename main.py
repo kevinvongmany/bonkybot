@@ -6,7 +6,6 @@ from async_tkinter_loop.mixins import AsyncCTk
 
 import logging
 import os
-from datetime import datetime
 import asqlite
 from config import JSON_DB_PATH, LOG_PATH, PROGRAM_DATA_DIR
 import twitchio
