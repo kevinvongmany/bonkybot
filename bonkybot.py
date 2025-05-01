@@ -386,18 +386,5 @@ class BotComponent(commands.Component):
             message=f"An ad break has started to help keep the channel going, we promise to be back shortly! Stay tuned for more content from {payload.broadcaster.name}! Please consider using twitch.tv/subs/{payload.broadcaster.name} you can skip ads and continue supporting the channel!",
         )
     
-    @commands.Component.listener("raid")
-    async def event_raid(self, payload: twitchio.ChannelRaid) -> None:
-
-        # Event dispatched when a user raids the channel from the subscription we made above...
-
-        await payload.to_broadcaster.send_announcement(
-            sender=self.bot.bot_id,
-            message=f"Thank you and welcome in {payload.from_broadcaster.name} and friends! Follow them @ twitch.tv/{payload.from_broadcaster.name}!",
-        )
-        await payload.to_broadcaster.send_shoutout(
-            to_broadcaster=payload.to_broadcaster.id,
-            moderator=self.bot.bot_id,
-        )
 # if __name__ == "__main__":
 #     main()

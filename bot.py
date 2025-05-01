@@ -48,10 +48,6 @@ class Bot(commands.Bot):
         subscription = eventsub.ChannelFollowSubscription(broadcaster_user_id=OWNER_ID, moderator_user_id=BOT_ID)
         await self.subscribe_websocket(payload=subscription)
 
-        subscription = eventsub.ChannelRaidSubscription(broadcaster_user_id=OWNER_ID, moderator_user_id=BOT_ID)
-        await self.subscribe_websocket(payload=subscription)
-
-
 
     async def add_token(self, token: str, refresh: str) -> twitchio.authentication.ValidateTokenPayload:
         # Make sure to call super() as it will add the tokens interally and return us some data...
