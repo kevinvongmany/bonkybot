@@ -23,21 +23,20 @@ class JSONDatabase:
     def __init__(self, filepath, default_data):
         self._filepath = filepath
         _loaded_data = self.load_data()
-        self.data = _loaded_data if _loaded_data else default_data
-        self.save_data()
+        _data = _loaded_data if _loaded_data else default_data
+        self.save_data(_data)
 
     def load_data(self):
         if os.path.exists(self._filepath):
             with open(self._filepath, "r") as f:
                 return json.load(f)
 
-    def save_data(self):
+    def save_data(self, data):
         with open(self._filepath, "w") as f:
-            json.dump(self.data, f, indent=4)
+            json.dump(data, f, indent=4)
 
     def reset_data(self, data):
-        self.data = data
-        self.save_data()
+        self.save_data(data)
     
     def get_current_timestamp(self) -> int:
         # Get the current timestamp
@@ -69,29 +68,32 @@ class UserDatabase(JSONDatabase):
         self.twitch_api = TwitchAPI(CLIENT_ID, CLIENT_SECRET)
 
     def add_user(self, user_id, payload):
-        self.data["users"].append({
+        data = self.load_data()
+        data["users"].append({
             "id": user_id,
             **payload
         })
-        self.save_data()
+        self.save_data(data)
 
     def update_user_data(self, user_id, payload):
-        for user in self.data["users"]:
+        data = self.load_data()
+        for user in data["users"]:
             if user["id"] == user_id:
                 user.update(payload)
-                self.save_data()
+                self.save_data(data)
                 return
         self.add_user(user_id, payload) # if user didn't exist, add it        
     
     def update_current_chatter(self, payload):
         # Check if user already exists
-        for user in self.data["users"]:
+        data = self.load_data()
+        for user in data["users"]:
             if user["id"] == payload.chatter.id:
                 user["name"] = payload.chatter.name
                 user["mod"] = payload.chatter.moderator
                 user["sub"] = payload.chatter.subscriber
                 user["last_message_ts"] = self.get_current_timestamp()
-                self.save_data()
+                self.save_data(data)
                 return user
             
         new_user = {
@@ -102,20 +104,22 @@ class UserDatabase(JSONDatabase):
             "persistent_mod": False,
             "points": 0
         }
-        self.data["users"].append(new_user)
-        self.save_data()
+        data["users"].append(new_user)
+        self.save_data(data)
         return new_user
 
     def get_user(self, user_id) -> dict[str, str]|None:
         # Check if user exists
-        for user in self.data["users"]:
+        data = self.load_data()
+        for user in data["users"]:
             if user["id"] == user_id:
                 return user
         return None
     
     def get_user_id_by_name(self, username) -> str|None:
         # Check if user exists
-        for user in self.data["users"]:
+        data = self.load_data()
+        for user in data["users"]:
             if user["name"] == username:
                 return user["id"]
         try:
@@ -143,16 +147,18 @@ class UserDatabase(JSONDatabase):
 
     def append_auto_response(self, username, response) -> None:
         # Check if user exists
-        for user in self.data["users"]:
+        data = self.load_data()
+        for user in data["users"]:
             if user["name"] == username:
                 if "auto_responses" not in user:
                     user["auto_responses"] = []
                 user["auto_responses"].append(response)
-                self.save_data()
+                self.save_data(data)
     
     def is_supermod(self, user_id) -> bool:
+        data = self.load_data()
         # Check if user is a supermod
-        for user in self.data["users"]:
+        for user in data["users"]:
             if user["id"] == user_id:
                 return user.get("supermod", False)
         return False
@@ -184,22 +190,26 @@ class BrickGameDatabase(JSONDatabase):
         super().__init__(BRICK_DB, self.DEFAULT_DATA)
 
     def get_default_target(self):
-        return self.data["default_target"]
+        data = self.load_data()
+        return data["default_target"]
     
     def set_default_target(self, target):
-        self.data["default_target"] = target
-        self.save_data()
+        data = self.load_data()
+        data["default_target"] = target
+        self.save_data(data)
     
     def get_users_target(self, username):
-        if username not in self.data["players"]:
-            return self.data["default_target"]
-        return self.data["players"][username].get("target", self.data["default_target"])
+        data = self.load_data()
+        if username not in data["players"]:
+            return data["default_target"]
+        return data["players"][username].get("target", data["default_target"])
     
     def set_users_target(self, username, target):
-        if username not in self.data["players"]:
-            self.data["players"][username] = {}
-        self.data["players"][username]["target"] = target
-        self.save_data()
+        data = self.load_data()
+        if username not in data["players"]:
+            data["players"][username] = {}
+        data["players"][username]["target"] = target
+        self.save_data(data)
     
     def is_target(self, from_user, current_target):
         # Check if input_user is the target of target_user
@@ -229,20 +239,24 @@ class DiceGameDatabase(JSONDatabase):
         self.set_timestamp()
 
     def get_timestamp(self):
-        return self.data["timestamp"]
+        data = self.load_data()
+        return data["timestamp"]
     
     def set_timestamp(self):
-        self.data["timestamp"] = self.get_current_timestamp()
-        self.save_data()
+        data = self.load_data()
+        data["timestamp"] = self.get_current_timestamp()
+        self.save_data(data)
 
     def is_new_player(self, username):
+        data = self.load_data()
         username = username.lower().strip()
         # Check if user is already in the players_today list
-        return username not in self.data["players_today"]
+        return username not in data["players_today"]
     
     def add_player(self, username):
         username = username.lower().strip()
+        data = self.load_data()
         # Add user to the players_today list
-        if username not in self.data["players_today"]:
-            self.data["players_today"].append(username)
-            self.save_data()
+        if username not in data["players_today"]:
+            data["players_today"].append(username)
+            self.save_data(data)
