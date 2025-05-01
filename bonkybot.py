@@ -356,10 +356,35 @@ class BotComponent(commands.Component):
             message=f"{payload.broadcaster} has gone live!",
         )
 
+    @commands.Component.listener("follow")
+    async def event_new_follower(self, payload: twitchio.ChannelFollow) -> None:
 
+        # Event dispatched when a user follows the channel from the subscription we made above...
 
+        await payload.broadcaster.send_message(
+            sender=self.bot.bot_id,
+            message=f"Thanks for the follow {payload.user.name}!",
+        )
 
+    @commands.Component.listener("subscription")
+    async def event_new_subscription(self, payload: twitchio.ChannelSubscribe) -> None:
 
+        # Event dispatched when a user subscribes to the channel from the subscription we made above...
 
+        await payload.broadcaster.send_message(
+            sender=self.bot.bot_id,
+            message=f"Thanks for subscribing {payload.user.name}!",
+        )
+
+    @commands.Component.listener("ad_break")
+    async def event_ad_break(self, payload: twitchio.ChannelAdBreakBegin) -> None:
+
+        # Event dispatched when an ad break begins from the subscription we made above...
+
+        await payload.broadcaster.send_announcement(
+            sender=self.bot.bot_id,
+            message=f"An ad break has started to help keep the channel going, we promise to be back shortly! Stay tuned for more content from {payload.broadcaster.name}! Please consider using twitch.tv/subs/{payload.broadcaster.name} you can skip ads and continue supporting the channel!",
+        )
+    
 # if __name__ == "__main__":
 #     main()
