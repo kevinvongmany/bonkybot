@@ -356,10 +356,15 @@ class BotComponent(commands.Component):
             message=f"{payload.broadcaster} has gone live!",
         )
 
+    @commands.Component.listener("follow")
+    async def event_new_follower(self, payload: twitchio.ChannelFollow) -> None:
 
+        # Event dispatched when a user follows the channel from the subscription we made above...
 
-
-
+        await payload.broadcaster.send_message(
+            sender=self.bot.bot_id,
+            message=f"Thanks for the follow {payload.user.name}!",
+        )
 
 # if __name__ == "__main__":
 #     main()

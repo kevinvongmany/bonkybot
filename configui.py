@@ -7,6 +7,7 @@ from async_tkinter_loop.mixins import AsyncCTk
 from config import JSON_DB_PATH, CONFIG_PATH, setup, config
 import webbrowser
 from PIL import ImageTk
+import urllib.parse
 
 def resource_path(relative_path):
     try:
@@ -113,7 +114,7 @@ class BonkyBotConfigApp(customtkinter.CTk, AsyncCTk):
             "moderator:manage:banned_users",
             "moderator:manage:announcements",
         ]
-        q_string = "%20".join(perms)
+        q_string = urllib.parse.quote(" ".join(perms))
         AUTH_URL = f"http://localhost:4343/oauth?scopes={q_string}"
         webbrowser.open_new_tab(AUTH_URL)
 
@@ -124,8 +125,10 @@ class BonkyBotConfigApp(customtkinter.CTk, AsyncCTk):
             "user:write:chat",
             "user:bot",
             "moderator:read:followers",
+            "moderator:manage:announcements",
         ]
-        AUTH_URL = f"http://localhost:4343/oauth?scopes={'%20'.join(perms)}"
+        q_string = urllib.parse.quote(" ".join(perms))
+        AUTH_URL = f"http://localhost:4343/oauth?scopes={q_string}"
         # Copy the URL to the clipboard
         self.clipboard_clear()
         self.clipboard_append(AUTH_URL)

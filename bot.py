@@ -39,6 +39,17 @@ class Bot(commands.Bot):
         subscription = eventsub.StreamOnlineSubscription(broadcaster_user_id=OWNER_ID)
         await self.subscribe_websocket(payload=subscription)
 
+        subscription = eventsub.AdBreakBeginSubscription(broadcaster_user_id=OWNER_ID)
+        await self.subscribe_websocket(payload=subscription)
+
+        subscription = eventsub.ChannelSubscribeSubscription(broadcaster_user_id=OWNER_ID)
+        await self.subscribe_websocket(payload=subscription)
+
+        subscription = eventsub.ChannelFollowSubscription(broadcaster_user_id=OWNER_ID, moderator_user_id=BOT_ID)
+        await self.subscribe_websocket(payload=subscription)
+
+
+
     async def add_token(self, token: str, refresh: str) -> twitchio.authentication.ValidateTokenPayload:
         # Make sure to call super() as it will add the tokens interally and return us some data...
         resp: twitchio.authentication.ValidateTokenPayload = await super().add_token(token, refresh)
