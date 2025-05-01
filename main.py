@@ -1,3 +1,4 @@
+import logging.handlers
 import customtkinter
 from async_tkinter_loop import async_handler
 from async_tkinter_loop.mixins import AsyncCTk
@@ -75,11 +76,14 @@ class BonkyBotApp(customtkinter.CTk, AsyncCTk):
         self.destroy()
         
 def main(ban_keyword=None, mod_keyword=None) -> None:
-    log_file_handler = logging.FileHandler(
+    log_file_handler = logging.handlers.TimedRotatingFileHandler(
         os.path.join(
             LOG_PATH, 
-            f"bonkybot_{datetime.now().strftime('%Y%m%d')}.log"
-        )
+            f"bonkybot.log"
+        ),
+        when="midnight",
+        interval=1,
+        backupCount=7,
     )
     
     log_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
