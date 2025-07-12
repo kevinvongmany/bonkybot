@@ -262,48 +262,90 @@ class MiniGameDatabase(JSONDatabase):
             "ban_keyword": "",
             "timeout_duration": 5,
         },
-        "mod_game" : {
-            "mod_keyword": "",
+        "vip_game" : {
+            "vip_keyword": "",
             "is_found": False
-        }
+        },
+        "mod_game" : {
+            "vip_keyword": "",
+            "is_found": False
+        },
+        "culling_mode": False
     }
 
     def __init__(self):
         super().__init__(MINIGAME_DB, self.DEFAULT_DATA)
 
+
     def get_timeout_duration(self):
         data = self.load_data()
-        return data["ban_game"]["timeout_duration"]
+        try:
+            return data["ban_game"]["timeout_duration"]
+        except KeyError:
+            return self.DEFAULT_DATA["ban_game"]["timeout_duration"]
     
     def get_ban_keyword(self):
         data = self.load_data()
-        return data["ban_game"]["ban_keyword"]
+        try:
+            return data["ban_game"]["ban_keyword"]
+        except KeyError:
+            return self.DEFAULT_DATA["ban_game"]["ban_keyword"]
     
-    def get_mod_keyword(self):
+    def get_vip_keyword(self):
         data = self.load_data()
-        return data["mod_game"]["mod_keyword"]
+        try:
+            return data["vip_game"]["vip_keyword"]
+        except KeyError:
+            return self.DEFAULT_DATA["vip_game"]["vip_keyword"]
     
-    def get_mod_game_status(self):
+    def get_vip_game_status(self):
         data = self.load_data()
-        return data["mod_game"]["is_found"]
+        try:
+            return data["vip_game"]["is_found"]
+        except KeyError:
+            return self.DEFAULT_DATA["vip_game"]["is_found"]
+
+    def get_culling_mode(self):
+        data = self.load_data()
+        try:
+            return data["culling_mode"]
+        except KeyError:
+            return self.DEFAULT_DATA["culling_mode"]
 
     def update_ban_keyword(self, keyword):
         data = self.load_data()
-        data["ban_game"]["ban_keyword"] = keyword
+        try:
+            data["ban_game"]["ban_keyword"] = keyword
+        except KeyError:
+            data["ban_game"] = {"ban_keyword": keyword, "timeout_duration": self.DEFAULT_DATA["ban_game"]["timeout_duration"]}
         self.save_data(data)
     
-    def update_mod_keyword(self, keyword):
+    def update_vip_keyword(self, keyword):
         data = self.load_data()
-        data["mod_game"]["mod_keyword"] = keyword
-        data["mod_game"]["is_found"] = False
+        try:
+            data["vip_game"]["vip_keyword"] = keyword
+            data["vip_game"]["is_found"] = False
+        except KeyError:
+            data["vip_game"] = {"vip_keyword": keyword, "is_found": False}
         self.save_data(data)
 
     def update_timeout_duration(self, duration):
         data = self.load_data()
-        data["ban_game"]["timeout_duration"] = duration
+        try:
+            data["ban_game"]["timeout_duration"] = duration
+        except KeyError:
+            data["ban_game"] = {"ban_keyword": self.DEFAULT_DATA["ban_game"]["ban_keyword"], "timeout_duration": duration}
         self.save_data(data)
 
-    def update_mod_game_status(self, status):
+    def update_vip_game_status(self, status):
         data = self.load_data()
-        data["mod_game"]["is_found"] = status
+        try:
+            data["vip_game"]["is_found"] = status
+        except KeyError:
+            data["vip_game"] = {"vip_keyword": self.DEFAULT_DATA["vip_game"]["vip_keyword"], "is_found": status}
+        self.save_data(data)
+
+    def toggle_culling_mode(self, mode: int = None):
+        data = self.load_data()
+        data["culling_mode"] = bool(mode)
         self.save_data(data)

@@ -73,17 +73,17 @@ class BotComponent(commands.Component):
             )
             LOGGER.info(f"Timed out moderator {payload.chatter.name} for using the keyword '{ban_keyword}'")
 
-    async def check_for_mod_keyword(self, payload: twitchio.ChatMessage) -> None:
-        if self.minigame_db.get_mod_game_status() or payload.chatter.moderator:
+    async def check_for_vip_keyword(self, payload: twitchio.ChatMessage) -> None:
+        if self.minigame_db.get_vip_game_status() or payload.chatter.vip:
             return
-        mod_keyword = self.minigame_db.get_mod_keyword()
-        if mod_keyword and mod_keyword in payload.text.lower():
+        vip_keyword = self.minigame_db.get_vip_keyword()
+        if vip_keyword and vip_keyword in payload.text.lower():
             await payload.broadcaster.add_vip(
                 user=payload.chatter.id
             )
             await payload.broadcaster.send_message(
                 sender=self.bot.bot_id,
-                message=f"{payload.chatter.mention} just found the VIP word: {mod_keyword}!",
+                message=f"{payload.chatter.mention} just found the VIP word: {vip_keyword}!",
             )
             self.user_db.update_user_data(payload.chatter.id, {"mod": True})
             self.minigame_db.update_mod_game_status(True)
@@ -95,6 +95,20 @@ class BotComponent(commands.Component):
                 user=payload.chatter.id
             )
             self.user_db.update_user_data(payload.chatter.id, {"mod": True})
+
+    async def cull_user(self, payload: twitchio.ChatMessage, user) -> None:
+        if not self.minigame_db.get_culling_mode():
+            return
+        if not payload.chatter.moderator or payload.chatter.broadcaster:
+            return
+        if self.user_db.is_persistent_mod(user.get("id")):
+            return
+        await payload.broadcaster.timeout_user(
+            moderator=OWNER_ID, 
+            user=payload.chatter.id, 
+            duration=self.minigame_db.get_timeout_duration(), 
+            reason="It's just business... nothing personal"
+        )
 
     async def send_auto_response(self, payload: twitchio.ChatMessage, user: dict[str, str]) -> None:
         try:
@@ -122,7 +136,8 @@ class BotComponent(commands.Component):
             user = self.load_user_from_db(payload)
             await self.check_for_mod_status(payload, user)
             await self.send_auto_response(payload, user)
-            await self.check_for_mod_keyword(payload)
+            await self.cull_user(payload, user)
+            await self.check_for_vip_keyword(payload)
             await self.check_for_ban_keyword(payload)
 
 
@@ -141,9 +156,12 @@ class BotComponent(commands.Component):
             return
         self.user_db.grant_permamod(chatter_id)
         await ctx.send(f"Granted permamod to {chatter}.")
+        await ctx.broadcaster.remove_vip(
+            user=chatter_id
+        )
         await ctx.broadcaster.add_moderator(
-                user=chatter_id
-            )
+            user=chatter_id
+        )
         
     @commands.command(aliases=["unmod"])
     @commands.is_broadcaster()
@@ -323,24 +341,7 @@ class BotComponent(commands.Component):
             print(e)
             await ctx.send("Invalid dice format. Please use the format <number of dice>d<sides> (e.g., 1d20, 2d6).")
             return
-        
-    @commands.cooldown(rate=1, per=5, key=commands.BucketType.chatter)
-    @commands.command(aliases=["poke"])
-    async def poke(self, ctx: commands.Context, *args) -> None:
-        if not args:
-            await ctx.send("Please provide a username to poke.")
-            return
-        target = self.clean_args(ctx.args)[0]
-        target_id = self.user_db.get_user_id_by_name(target)
-        if not target_id:
-            await ctx.send(f"{target} does not exist.")
-            return
-        await ctx.send(f"{ctx.chatter.mention} pokes {target}!")
-        await ctx.broadcaster.send_message(
-            sender=self.bot.bot_id,
-            message=f"{ctx.chatter.mention} poked {target}!",
-        )
-
+    
     @commands.cooldown(rate=1, per=60, key=commands.BucketType.channel)
     @commands.command(aliases=["time", "currenttime"])
     async def get_current_time(self, ctx: commands.Context) -> None:
