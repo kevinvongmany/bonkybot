@@ -4,9 +4,10 @@ import random
 
 from twitchio.ext import commands
 from datetime import datetime, timedelta
-from config import OWNER_ID
+from config import OWNER_ID, BOT_ID
 from db import UserDatabase, BrickGameDatabase, DiceGameDatabase, MiniGameDatabase
 from bot import Bot
+import re
 
 LOGGER: logging.Logger = logging.getLogger("BonkyBot")
 
@@ -19,14 +20,9 @@ class BotComponent(commands.Component):
         self.minigame_db = MiniGameDatabase()
         self.bot = bot
 
-    
-    def _set_supermod(self, user: dict[str, str]) -> None:
-        if not user.get("supermod"):
-            self.user_db.update_user_data(user["id"], {"supermod": True, "persistent_mod": True})
-            LOGGER.info(f"Granting supermod status to {user['name']}")
-    
-    def _has_super_permissions(self, ctx: commands.Context) -> bool:
-        if not (ctx.chatter.broadcaster or self.user_db.is_supermod(ctx.chatter.id)):
+        
+    def _has_mod_perms(self, ctx: commands.Context) -> bool:
+        if not (ctx.chatter.broadcaster or self.user_db.is_persistent_mod(ctx.chatter.id)):
             LOGGER.info(f"{ctx.chatter.name} lacks permissions to run this command.")
             return False
         return True
@@ -39,7 +35,7 @@ class BotComponent(commands.Component):
         LOGGER.info(f"Chatters: {chatters_map}")
         return chatters_map
     
-    def pick_random_chatter(self, chatters: dict[str, str]) -> str:
+    def _pick_random_chatter(self, chatters: dict[str, str]) -> str:
         # Pick a random chatter from the list
         random_chatter = random.choice(list(chatters.values()))
         LOGGER.info(f"Random Chatter: {random_chatter}")
@@ -77,17 +73,17 @@ class BotComponent(commands.Component):
             )
             LOGGER.info(f"Timed out moderator {payload.chatter.name} for using the keyword '{ban_keyword}'")
 
-    async def check_for_mod_keyword(self, payload: twitchio.ChatMessage) -> None:
-        if self.minigame_db.get_mod_game_status() or payload.chatter.moderator:
+    async def check_for_vip_keyword(self, payload: twitchio.ChatMessage) -> None:
+        if self.minigame_db.get_vip_game_status() or payload.chatter.vip:
             return
-        mod_keyword = self.minigame_db.get_mod_keyword()
-        if mod_keyword and mod_keyword in payload.text.lower():
-            await payload.broadcaster.add_moderator(
+        vip_keyword = self.minigame_db.get_vip_keyword()
+        if vip_keyword and vip_keyword in payload.text.lower():
+            await payload.broadcaster.add_vip(
                 user=payload.chatter.id
             )
             await payload.broadcaster.send_message(
                 sender=self.bot.bot_id,
-                message=f"{payload.chatter.mention} has been granted mod status for finding the keyword '{mod_keyword}'!",
+                message=f"{payload.chatter.mention} just found the VIP word: {vip_keyword}!",
             )
             self.user_db.update_user_data(payload.chatter.id, {"mod": True})
             self.minigame_db.update_mod_game_status(True)
@@ -99,6 +95,20 @@ class BotComponent(commands.Component):
                 user=payload.chatter.id
             )
             self.user_db.update_user_data(payload.chatter.id, {"mod": True})
+
+    async def cull_user(self, payload: twitchio.ChatMessage, user) -> None:
+        if not self.minigame_db.get_culling_mode():
+            return
+        if not payload.chatter.moderator or payload.chatter.broadcaster:
+            return
+        if self.user_db.is_persistent_mod(user.get("id")):
+            return
+        await payload.broadcaster.timeout_user(
+            moderator=OWNER_ID, 
+            user=payload.chatter.id, 
+            duration=self.minigame_db.get_timeout_duration(), 
+            reason="It's just business... nothing personal"
+        )
 
     async def send_auto_response(self, payload: twitchio.ChatMessage, user: dict[str, str]) -> None:
         try:
@@ -126,31 +136,14 @@ class BotComponent(commands.Component):
             user = self.load_user_from_db(payload)
             await self.check_for_mod_status(payload, user)
             await self.send_auto_response(payload, user)
-            await self.check_for_mod_keyword(payload)
+            await self.cull_user(payload, user)
+            await self.check_for_vip_keyword(payload)
             await self.check_for_ban_keyword(payload)
 
 
     
     # Broadcaster Commands 
     @commands.command(aliases=["mod", "m", "m0d"])
-    async def grant_mod_status(self, ctx: commands.Context, chatter) -> None:
-        if self._has_super_permissions(ctx) is False:
-            return
-        if not chatter:
-            await ctx.send("Please provide a username to mod.")
-            return
-        chatter = chatter.replace("@", "").lower()
-        chatter_id = self.user_db.get_user_id_by_name(chatter)
-        if not chatter_id:
-            await ctx.send(f"{chatter} does not exist.")
-            return
-        LOGGER.info(f"Granting mod status to {ctx.chatter.name}")
-        await ctx.broadcaster.add_moderator(
-            user=chatter_id
-        )
-        self.user_db.update_user_data(chatter_id, {"mod": True})
-    
-    @commands.command(aliases=["permamod", "permam0d", "pm"])
     @commands.is_broadcaster()
     async def grant_perm_mod_status(self, ctx: commands.Context, chatter) -> None:
         if not chatter:
@@ -162,29 +155,17 @@ class BotComponent(commands.Component):
             await ctx.send(f"{chatter} does not exist.")
             return
         self.user_db.grant_permamod(chatter_id)
-        await ctx.send(f"Granted permanent mod status to {chatter}.")
-        await ctx.broadcaster.add_moderator(
+        await ctx.send(f"Granted permamod to {chatter}.")
+        try:
+            await ctx.broadcaster.remove_vip(
                 user=chatter_id
             )
+        except twitchio.HTTPException:
+            LOGGER.info(f"{chatter} is not a VIP, skipping removal.")
+        await ctx.broadcaster.add_moderator(
+            user=chatter_id
+        )
         
-    @commands.command(aliases=["supermod", "superm0d", "sm"])
-    @commands.is_broadcaster()
-    async def grant_super_mod_status(self, ctx: commands.Context, chatter) -> None:
-        if not chatter:
-            await ctx.send("Please provide a username to grant supermod status to.")
-            return
-        chatter = chatter.replace("@", "").lower()
-        chatter_id = self.user_db.get_user_id_by_name(chatter)
-        if not chatter_id:
-            await ctx.send(f"{chatter} does not exist.")
-            return
-        self.user_db.grant_permamod(chatter_id)
-        self._set_supermod(self.user_db.get_user(chatter_id))
-        await ctx.send(f"Granted super mod status to {chatter}.")
-        await ctx.broadcaster.add_moderator(
-                user=chatter_id
-            )
-    
     @commands.command(aliases=["unmod"])
     @commands.is_broadcaster()
     async def revoke_mod_status(self, ctx: commands.Context, chatter) -> None:
@@ -214,11 +195,7 @@ class BotComponent(commands.Component):
         if not target_id:
             await ctx.send(f"{target} does not exist.")
             return
-        await ctx.send_announcement(f"{target} is an AWESOME streamer! Please give them a follow and check them out at https://www.twitch.tv/{target}")
-        await ctx.broadcaster.send_shoutout(
-            to_broadcaster=target_id,
-            moderator=ctx.chatter.id
-        )
+        await ctx.send_announcement(f"{target} is an AWESOME streamer! Please give them a follow and check them out at https://twitch.tv/{target}")
     
     @commands.is_elevated()
     @commands.command(aliases=["vip"])
@@ -237,17 +214,17 @@ class BotComponent(commands.Component):
 
     @commands.command(aliases=["autoresponse", "ar"])
     async def set_auto_response(self, ctx: commands.Context, *args) -> None:
-        if self._has_super_permissions(ctx) is False:
+        if self._has_mod_perms(ctx) is False:
             return
         if len(args) < 2:
-            await ctx.send("Please provide a username and an auto response for their first message in chat! Format: !ar @username <response>")
+            await ctx.send("Format: !ar @username <response>")
             return
         chatter = args[0].replace("@", "").lower()
         if not self.user_db.get_user_id_by_name(chatter):
             await ctx.send(f"{chatter} does not exist.")
             return
         self.user_db.append_auto_response(chatter, " ".join(args[1:]))
-        await ctx.send(f"Added response '{' '.join(args[1:])}' for {chatter}.")
+        await ctx.send(f"Added auto-response for {chatter}: {' '.join(args[1:])}.")
 
     # Chatter commands 
     @commands.cooldown(rate=1, per=5, key=commands.BucketType.chatter)
@@ -260,7 +237,7 @@ class BotComponent(commands.Component):
             target = " ".join(_args)
         else:
             chatters = await self.get_current_chatters(ctx)
-            target = self.pick_random_chatter(chatters)
+            target = self._pick_random_chatter(chatters)
             if target == self.brick_db.get_users_target(ctx.chatter.name):
                 target_id = self.user_db.get_user_id_by_name(target)
                 if target_id:
@@ -269,17 +246,35 @@ class BotComponent(commands.Component):
                         moderator=OWNER_ID, 
                         user=target_id, 
                         duration=self.minigame_db.get_timeout_duration(), 
-                        reason="Brick roulette victim"
+                        reason="Got bricked"
                         )
+                    await ctx.broadcaster.remove_vip(
+                        user=target_id
+                    )
                     return
+        target_id = self.user_db.get_user_id_by_name(target)
+        if target_id == BOT_ID:
+            LOGGER.info(f"{ctx.chatter.name} tried to brick the bot.")
+            await ctx.send(f"{ctx.chatter.name} just threw a brick at {target}!")
+            await ctx.broadcaster.timeout_user(
+                moderator=OWNER_ID,
+                user=ctx.chatter.id,
+                duration=self.minigame_db.get_timeout_duration(),
+                reason="Tried to brick the bot"
+            )
+            return
+
         if ctx.broadcaster.name in target.lower():
-            await ctx.send(f"{ctx.chatter.name} just threw a brick at {ctx.broadcaster.name} and will now be timed out!")
+            await ctx.send(f"{ctx.chatter.name} just threw a brick at {ctx.broadcaster.name}!")
             await ctx.channel.timeout_user(
                 moderator=OWNER_ID, 
                 user=ctx.chatter.id, 
                 duration=self.minigame_db.get_timeout_duration(), 
-                reason="Lost brick roulette"
+                reason="Got bricked"
                 )
+            await ctx.broadcaster.remove_vip(
+                user=ctx.chatter.id
+            )
             return
         await ctx.send(self.throw_brick_at_user(ctx.chatter.name, target))
 
@@ -287,32 +282,43 @@ class BotComponent(commands.Component):
     @commands.command(aliases=["target"])
     async def brick_target(self, ctx: commands.Context, *args) -> None:
         target = ""
+        chatter_name = ctx.chatter.name
         _args = self.clean_args(ctx.args)
         if _args:
             target = _args[0]
         # Set the target for the user...
         if not target:
-            await ctx.send(f"Your current target is set to: {self.brick_db.get_users_target(ctx.chatter.name)}. To change it, use !brick target <username>.")
+            await ctx.send(f"{chatter_name} current target : {self.brick_db.get_users_target(chatter_name)}. To change it, use !target <username>.")
             return
         target = target.replace("@", "").lower()
-        if target == ctx.chatter.name:
+        if self.user_db.get_user_id_by_name(target) == BOT_ID:
+            LOGGER.info(f"{chatter_name} tried to set the bot as their target.")
+            await ctx.send("You cannot set the bot as your target.")
+            ctx.broadcaster.timeout_user(
+                moderator=OWNER_ID,
+                user=ctx.chatter.id,
+                duration=self.minigame_db.get_timeout_duration(),
+                reason="Tried to set the bot as their target"
+            )
+            return
+        if target == chatter_name:
             await ctx.send("You cannot set yourself as your target.")
             return
         elif target == ctx.broadcaster.name:
             await ctx.send("You cannot set the streamer as your target.")
             return
-        self.brick_db.set_users_target(ctx.chatter.name, target)
-        await ctx.send(f"Set {target} as your target. !brick them to get them timed out!")
+        self.brick_db.set_users_target(chatter_name, target)
+        await ctx.send(f"Set {target} as your target. !brick them to time them out!")
 
     @commands.cooldown(rate=1, per=5, key=commands.BucketType.chatter)
     @commands.command(aliases=["d20"])
-    async def roll_dice(self, ctx: commands.Context) -> None:
+    async def roll_d20(self, ctx: commands.Context) -> None:
         # Roll a dice with the given number of sides...
         random_dice_roll = random.randint(1, 20)
         if random_dice_roll == 20:
             if self.dice_db.is_new_player(ctx.chatter.name) and not ctx.chatter.moderator:
-                await ctx.send(f"{ctx.chatter.mention} just got super lucky and rolled a 20 in their first attempt today! You are now a mod!")
-                await ctx.broadcaster.add_moderator(
+                await ctx.send(f"{ctx.chatter.mention} just got super lucky and rolled a 20 in their first attempt today! You are now a vip!")
+                await ctx.broadcaster.add_vip(
                     user=ctx.chatter.id
                 )
             else:
@@ -324,12 +330,43 @@ class BotComponent(commands.Component):
                 user=ctx.chatter.id, 
                 duration=self.minigame_db.get_timeout_duration(), 
                 reason="Rolled a 1"
-                )
+            )
+            await ctx.broadcaster.remove_vip(
+                user=ctx.chatter.id
+            )
         else:
             await ctx.send(f"{ctx.chatter.mention} rolls a {random_dice_roll}!")
 
         self.dice_db.add_player(ctx.chatter.name)
 
+    @commands.cooldown(rate=1, per=5, key=commands.BucketType.chatter)
+    @commands.command(aliases=["roll"])
+    async def roll_dice(self, ctx: commands.Context, *args) -> None:
+        dice_format = r"^(\d+)?d\d+$"
+        if not args[0] or not re.match(dice_format, args[0]):
+            await ctx.send("Please provide a valid dice format (e.g., 1d20, 2d6).")
+            return
+        dice_roll = self.clean_args(ctx.args)[0]
+        try:
+            num_dice, sides = map(str, dice_roll.split("d"))
+            if not num_dice:
+                num_dice = 1
+            num_dice = int(num_dice)
+            sides = int(sides)            
+            if num_dice <= 0 or sides <= 0:
+                await ctx.send("Number of dice and sides must be positive.")
+                return
+            if num_dice > 100 or sides > 100:
+                await ctx.send("Too many dice or sides! Please keep it reasonable (max 100 dice, 100 sides).")
+                return
+            rolls = [random.randint(1, sides) for _ in range(num_dice)]
+            total = sum(rolls)
+            await ctx.send(f"{ctx.chatter.mention} rolled a {num_dice}d{sides}: {', '.join(map(str, rolls))} (Total: {total})")
+        except ValueError as e:
+            print(e)
+            await ctx.send("Invalid dice format. Please use the format <number of dice>d<sides> (e.g., 1d20, 2d6).")
+            return
+    
     @commands.cooldown(rate=1, per=60, key=commands.BucketType.channel)
     @commands.command(aliases=["time", "currenttime"])
     async def get_current_time(self, ctx: commands.Context) -> None:
