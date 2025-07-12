@@ -23,8 +23,9 @@ class JSONDatabase:
     def __init__(self, filepath, default_data):
         self._filepath = filepath
         _loaded_data = self.load_data()
-        _data = _loaded_data if _loaded_data else default_data
-        self.save_data(_data)
+        if not _loaded_data:
+            self.save_data(default_data)
+
 
     def load_data(self):
         if os.path.exists(self._filepath):
@@ -85,13 +86,10 @@ class UserDatabase(JSONDatabase):
         self.add_user(user_id, payload) # if user didn't exist, add it        
     
     def update_current_chatter(self, payload):
-        # Check if user already exists
         data = self.load_data()
         for user in data["users"]:
             if user["id"] == payload.chatter.id:
                 user["name"] = payload.chatter.name
-                user["mod"] = payload.chatter.moderator
-                user["sub"] = payload.chatter.subscriber
                 user["last_message_ts"] = self.get_current_timestamp()
                 self.save_data(data)
                 return user
@@ -99,8 +97,6 @@ class UserDatabase(JSONDatabase):
         new_user = {
             "id": payload.chatter.id,
             "name": payload.chatter.name,
-            "mod": payload.chatter.moderator,
-            "sub": payload.chatter.subscriber,
             "persistent_mod": False,
             "points": 0
         }
@@ -109,7 +105,6 @@ class UserDatabase(JSONDatabase):
         return new_user
 
     def get_user(self, user_id) -> dict[str, str]|None:
-        # Check if user exists
         data = self.load_data()
         for user in data["users"]:
             if user["id"] == user_id:
@@ -117,7 +112,6 @@ class UserDatabase(JSONDatabase):
         return None
     
     def get_user_id_by_name(self, username) -> str|None:
-        # Check if user exists
         data = self.load_data()
         for user in data["users"]:
             if user["name"] == username:
@@ -138,15 +132,12 @@ class UserDatabase(JSONDatabase):
         self.update_user_data(user_id, {"mod": True, "persistent_mod": True})
 
     def revoke_permamod(self, user_id) -> None:
-        # Check if user exists
         self.update_user_data(user_id, {"persistent_mod": False})
 
     def revoke_mod_status(self, user_id) -> None:
-        # Check if user exists
         self.update_user_data(user_id, {"mod": False, "persistent_mod": False})
 
     def append_auto_response(self, username, response) -> None:
-        # Check if user exists
         data = self.load_data()
         for user in data["users"]:
             if user["name"] == username:
@@ -155,12 +146,12 @@ class UserDatabase(JSONDatabase):
                 user["auto_responses"].append(response)
                 self.save_data(data)
     
-    def is_supermod(self, user_id) -> bool:
+    def is_persistent_mod(self, user_id) -> bool:
         data = self.load_data()
         # Check if user is a supermod
         for user in data["users"]:
             if user["id"] == user_id:
-                return user.get("supermod", False)
+                return user.get("persistent_mod", False)
         return False
     
 
