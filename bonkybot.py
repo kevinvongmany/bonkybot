@@ -4,7 +4,7 @@ import random
 
 from twitchio.ext import commands
 from datetime import datetime, timedelta
-from config import OWNER_ID
+from config import OWNER_ID, BOT_ID
 from db import UserDatabase, BrickGameDatabase, DiceGameDatabase, MiniGameDatabase
 from bot import Bot
 import re
@@ -91,7 +91,7 @@ class BotComponent(commands.Component):
     async def check_for_mod_status(self, payload: twitchio.ChatMessage, user: dict[str, str]) -> None:
         if user['persistent_mod'] and not payload.chatter.moderator: 
             LOGGER.info(f"Granting mod status to {payload.chatter.name}")
-            await payload.broadcaster.add_vip(
+            await payload.broadcaster.add_moderator(
                 user=payload.chatter.id
             )
             self.user_db.update_user_data(payload.chatter.id, {"mod": True})
@@ -156,9 +156,12 @@ class BotComponent(commands.Component):
             return
         self.user_db.grant_permamod(chatter_id)
         await ctx.send(f"Granted permamod to {chatter}.")
-        await ctx.broadcaster.remove_vip(
-            user=chatter_id
-        )
+        try:
+            await ctx.broadcaster.remove_vip(
+                user=chatter_id
+            )
+        except twitchio.HTTPException:
+            LOGGER.info(f"{chatter} is not a VIP, skipping removal.")
         await ctx.broadcaster.add_moderator(
             user=chatter_id
         )
@@ -249,6 +252,18 @@ class BotComponent(commands.Component):
                         user=target_id
                     )
                     return
+        target_id = self.user_db.get_user_id_by_name(target)
+        if target_id == BOT_ID:
+            LOGGER.info(f"{ctx.chatter.name} tried to brick the bot.")
+            await ctx.send(f"{ctx.chatter.name} just threw a brick at {target}!")
+            await ctx.broadcaster.timeout_user(
+                moderator=OWNER_ID,
+                user=ctx.chatter.id,
+                duration=self.minigame_db.get_timeout_duration(),
+                reason="Tried to brick the bot"
+            )
+            return
+
         if ctx.broadcaster.name in target.lower():
             await ctx.send(f"{ctx.chatter.name} just threw a brick at {ctx.broadcaster.name}!")
             await ctx.channel.timeout_user(
@@ -276,6 +291,16 @@ class BotComponent(commands.Component):
             await ctx.send(f"{chatter_name} current target : {self.brick_db.get_users_target(chatter_name)}. To change it, use !target <username>.")
             return
         target = target.replace("@", "").lower()
+        if self.user_db.get_user_id_by_name(target) == BOT_ID:
+            LOGGER.info(f"{chatter_name} tried to set the bot as their target.")
+            await ctx.send("You cannot set the bot as your target.")
+            ctx.broadcaster.timeout_user(
+                moderator=OWNER_ID,
+                user=ctx.chatter.id,
+                duration=self.minigame_db.get_timeout_duration(),
+                reason="Tried to set the bot as their target"
+            )
+            return
         if target == chatter_name:
             await ctx.send("You cannot set yourself as your target.")
             return
