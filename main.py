@@ -109,11 +109,11 @@ class BonkyBotApp(customtkinter.CTk, AsyncCTk):
 
     def update_autoban_keyword(self):
         keyword = self.autoban_input.get()
-        self.minigame_db.update_ban_keyword(keyword)
+        self.minigame_db.update_ban_keyword(keyword.lower())
 
     def update_autovip_keyword(self):
         keyword = self.autovip_input.get()
-        self.minigame_db.update_vip_keyword(keyword)
+        self.minigame_db.update_vip_keyword(keyword.lower())
 
     def update_timeout_duration(self):
         try:
