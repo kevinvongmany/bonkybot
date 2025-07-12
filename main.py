@@ -30,7 +30,7 @@ class BonkyBotApp(customtkinter.CTk, AsyncCTk):
         super().__init__()
         self.geometry("400x600")
         self.iconpath = ImageTk.PhotoImage(file=resource_path("./bb.ico"))
-        self.title("Bonky Bot")
+        self.title("BonkyBot")
         self.wm_iconbitmap()
         self.iconphoto(False, self.iconpath)
         self.resizable(False, False)
@@ -45,7 +45,7 @@ class BonkyBotApp(customtkinter.CTk, AsyncCTk):
         self.button_font = customtkinter.CTkFont(family="Comic Sans MS", size=15, weight="bold")
         
     def create_widgets(self):    
-        self.title_label = customtkinter.CTkLabel(self, text="Bonky Bot", font=self.title_font)
+        self.title_label = customtkinter.CTkLabel(self, text="BonkyBot", font=self.title_font)
         self.title_label.pack(pady=(20, 5))
 
         self.autovip_label = customtkinter.CTkLabel(self, text="Auto VIP keyword", font=self.main_font)
@@ -71,9 +71,9 @@ class BonkyBotApp(customtkinter.CTk, AsyncCTk):
         self.timeout_update_button = customtkinter.CTkButton(self, text="Update", command=self.update_timeout_duration, font=self.button_font, state="disabled")
         self.timeout_update_button.pack(pady=(0,10))
 
-        self.culling_mode_switch = customtkinter.CTkSwitch(self, text="Culling Mode", command=self.update_culling_mode, font=self.main_font, state="disabled")
+        self.culling_mode_switch = customtkinter.CTkSwitch(self, text="Culling Mode", command=self.update_culling_mode, font=self.main_font)
         self.culling_mode_switch.pack(pady=(10,10))
-        
+        self.get_culling_mode()
 
         self.launch_button = customtkinter.CTkButton(self, text="LAUNCH BOT", command=self.launch_bot, font=self.button_font)
         self.launch_button.pack(pady=(30,10))
@@ -95,7 +95,13 @@ class BonkyBotApp(customtkinter.CTk, AsyncCTk):
         self.autovip_update_button.configure(state="normal")
         self.autoban_update_button.configure(state="normal")
         self.timeout_update_button.configure(state="normal")
-        self.culling_mode_switch.configure(state="normal")
+
+    def get_culling_mode(self):
+        mode = self.minigame_db.get_culling_mode()
+        if mode:
+            self.culling_mode_switch.select()
+        else:
+            self.culling_mode_switch.deselect()
 
     def update_culling_mode(self):
         mode = self.culling_mode_switch.get()
