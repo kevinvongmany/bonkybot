@@ -85,8 +85,8 @@ class BotComponent(commands.Component):
                 sender=self.bot.bot_id,
                 message=f"{payload.chatter.mention} just found the VIP word: {vip_keyword}!",
             )
-            self.user_db.update_user_data(payload.chatter.id, {"mod": True})
-            self.minigame_db.update_mod_game_status(True)
+            self.user_db.update_user_data(payload.chatter.id, {"vip": True})
+            self.minigame_db.update_vip_game_status(True)
     
     async def check_for_mod_status(self, payload: twitchio.ChatMessage, user: dict[str, str]) -> None:
         if user['persistent_mod'] and not payload.chatter.moderator: 
@@ -99,10 +99,16 @@ class BotComponent(commands.Component):
     async def cull_user(self, payload: twitchio.ChatMessage, user) -> None:
         if not self.minigame_db.get_culling_mode():
             return
-        if not payload.chatter.moderator or payload.chatter.broadcaster:
+        if not payload.chatter.moderator or payload.chatter.broadcaster or payload.chatter.vip:
             return
         if self.user_db.is_persistent_mod(user.get("id")):
             return
+        try:
+            await payload.broadcaster.remove_vip(
+                user=payload.chatter.id
+            )
+        except twitchio.HTTPException:
+            LOGGER.info(f"{payload.chatter.id} is not a VIP, skipping removal.")
         await payload.broadcaster.timeout_user(
             moderator=OWNER_ID, 
             user=payload.chatter.id, 
@@ -141,6 +147,10 @@ class BotComponent(commands.Component):
             await self.check_for_ban_keyword(payload)
 
 
+    @commands.Component.listener()
+    async def event_redeem(self, payload: twitchio.CustomRewardRedemption) -> None:
+        timestamp = datetime.now().strftime("%H:%M:%S.%f")
+        print(f"[{timestamp}] [{payload.reward}] [{payload.id}]")
     
     # Broadcaster Commands 
     @commands.command(aliases=["mod", "m", "m0d"])

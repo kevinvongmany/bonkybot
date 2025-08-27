@@ -108,6 +108,7 @@ class BonkyBotConfigApp(customtkinter.CTk, AsyncCTk):
             "channel:read:ads",
             "channel:manage:vips",
             "channel:manage:moderators",
+            "channel:manage:redemptions",
             "moderator:read:chatters",
             "moderator:read:followers",
             "moderator:manage:shoutouts",
@@ -134,6 +135,10 @@ class BonkyBotConfigApp(customtkinter.CTk, AsyncCTk):
         self.clipboard_append(AUTH_URL)
         self.update()
 
+    def quit_app(self):
+        self.quit()
+        self.destroy()
+        os._exit(0)
 
 if __name__ == "__main__":
     setup()
@@ -142,4 +147,5 @@ if __name__ == "__main__":
 
     # Initialize and run the Bonky Bot application
     app = BonkyBotConfigApp()
+    app.protocol("WM_DELETE_WINDOW", app.quit_app)
     app.async_mainloop()
