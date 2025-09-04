@@ -9,6 +9,8 @@ from db import UserDatabase, BrickGameDatabase, DiceGameDatabase, MiniGameDataba
 from bot import Bot
 import re
 
+from streamerbonkhandler import send_ws_message, ACTIONS
+
 LOGGER: logging.Logger = logging.getLogger("BonkyBot")
 
 class BotComponent(commands.Component):
@@ -147,10 +149,6 @@ class BotComponent(commands.Component):
             await self.check_for_ban_keyword(payload)
 
 
-    @commands.Component.listener()
-    async def event_redeem(self, payload: twitchio.CustomRewardRedemption) -> None:
-        timestamp = datetime.now().strftime("%H:%M:%S.%f")
-        print(f"[{timestamp}] [{payload.reward}] [{payload.id}]")
     
     # Broadcaster Commands 
     @commands.command(aliases=["mod", "m", "m0d"])
@@ -388,7 +386,7 @@ class BotComponent(commands.Component):
     async def bonky_help(self, ctx: commands.Context) -> None:
         # Display a list of commands...
         await ctx.send(
-            f"Viewer commands: !brick, !d20, !help. Broadcaster commands: !mod/!m/!m0d, !unmod/!um/!unm0d, !permamod/!pm/!permam0d. Please message @bonksolid on discord to report bugs or request features."
+            f"Viewer commands: !brick, !d20, !help. Broadcaster commands: !mod/!m/!m0d, !unmod/!um/!unm0d. Please message @bonksolid on discord to report bugs or request features."
         )
 
     @commands.cooldown(rate=1, per=60, key=commands.BucketType.chatter)
@@ -413,8 +411,6 @@ class BotComponent(commands.Component):
     @commands.Component.listener("follow")
     async def event_new_follower(self, payload: twitchio.ChannelFollow) -> None:
 
-        # Event dispatched when a user follows the channel from the subscription we made above...
-
         await payload.broadcaster.send_message(
             sender=self.bot.bot_id,
             message=f"Thanks for the follow {payload.user.name}!",
@@ -423,22 +419,63 @@ class BotComponent(commands.Component):
     @commands.Component.listener("subscription")
     async def event_new_subscription(self, payload: twitchio.ChannelSubscribe) -> None:
 
-        # Event dispatched when a user subscribes to the channel from the subscription we made above...
-
         await payload.broadcaster.send_message(
             sender=self.bot.bot_id,
             message=f"Thanks for subscribing {payload.user.name}!",
         )
 
+        if not self.minigame_db.get_streamerbonk():
+            return
+        await send_ws_message('all_abilities')
+
+    @commands.Component.listener("subscription_gift")
+    async def event_subscription_gift(self, payload: twitchio.ChannelSubscriptionGift) -> None:
+        sub_message = f"{payload.total} sub"
+        if payload.total > 1:
+            sub_message + "s"
+
+        await payload.broadcaster.send_message(
+            sender=self.bot.bot_id,
+            message=f"Thank you {payload.user.name} for gifting {sub_message} to the channel!",
+        )
+        if not self.minigame_db.get_streamerbonk():
+            return
+        for item in ACTIONS:
+            if payload.total == item['gifted_subs']:
+                LOGGER.info(f"Sending command via gifted subs {item['variable']}")
+                await send_ws_message(item['variable'])
+
     @commands.Component.listener("ad_break")
     async def event_ad_break(self, payload: twitchio.ChannelAdBreakBegin) -> None:
-
-        # Event dispatched when an ad break begins from the subscription we made above...
 
         await payload.broadcaster.send_announcement(
             sender=self.bot.bot_id,
             message=f"An ad break has started to help keep the channel going, we promise to be back shortly! Stay tuned for more content from {payload.broadcaster.name}! Please consider using twitch.tv/subs/{payload.broadcaster.name} you can skip ads and continue supporting the channel!",
         )
+
+    @commands.Component.listener("custom_redemption_add")
+    async def event_redeem(self, payload: twitchio.ChannelPointsRedemptionAdd) -> None:
+        if not self.minigame_db.get_streamerbonk():
+            return
+        for item in ACTIONS:
+            if payload.reward.id.lower() == item['redeem_id'].lower():
+                LOGGER.info(f"Sending command via redeem {item['variable']}")
+                await send_ws_message(item['variable'])
+
+    @commands.Component.listener("bits_use")
+    async def event_bits_use(self, payload: twitchio.ChannelBitsUse) -> None:
+        await payload.broadcaster.send_message(
+            sender=self.bot.bot_id,
+            message=f"THANK YOU {payload.user.name} for the {payload.bits} bits!",
+        )
+        if not self.minigame_db.get_streamerbonk():
+            return
+        for item in ACTIONS:
+            if payload.bits == item['bits']:
+                LOGGER.info(f"Sending command via bits {item['variable']}")
+                await send_ws_message(item['variable'])
+
+    
     
 # if __name__ == "__main__":
 #     main()

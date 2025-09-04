@@ -270,7 +270,8 @@ class MiniGameDatabase(JSONDatabase):
             "vip_keyword": "",
             "is_found": False
         },
-        "culling_mode": False
+        "culling_mode": False,
+        "streamerbonk": False
     }
 
     def __init__(self):
@@ -312,6 +313,14 @@ class MiniGameDatabase(JSONDatabase):
         except KeyError:
             return self.DEFAULT_DATA["culling_mode"]
 
+    def get_streamerbonk(self):
+        data = self.load_data()
+        try:
+            return data["streamerbonk"]
+        except KeyError:
+            return self.DEFAULT_DATA["streamerbonk"]
+
+
     def update_ban_keyword(self, keyword):
         data = self.load_data()
         try:
@@ -348,4 +357,9 @@ class MiniGameDatabase(JSONDatabase):
     def toggle_culling_mode(self, mode: int = None):
         data = self.load_data()
         data["culling_mode"] = bool(mode)
+        self.save_data(data)
+
+    def toggle_streamerbonk(self, mode: int = None):
+        data = self.load_data()
+        data["streamerbonk"] = bool(mode)
         self.save_data(data)

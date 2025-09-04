@@ -109,6 +109,7 @@ class BonkyBotConfigApp(customtkinter.CTk, AsyncCTk):
             "channel:manage:vips",
             "channel:manage:moderators",
             "channel:manage:redemptions",
+            "bits:read",
             "moderator:read:chatters",
             "moderator:read:followers",
             "moderator:manage:shoutouts",

@@ -40,25 +40,21 @@ class BonkyBotApp(customtkinter.CTk, AsyncCTk):
         self.configure_grid()
         self.create_widgets()
 
-        self.setup_rewards_pane()
-
     def configure_grid(self):
         self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=2)
-        self.grid_rowconfigure(0, weight=2)
-        self.grid_rowconfigure(1, weight=1)
-        self.grid_rowconfigure(2, weight=1)
-        self.grid_rowconfigure(3, weight=1)
-        self.grid_rowconfigure(4, weight=1)
-        self.grid_rowconfigure(5, weight=1)
-        self.grid_rowconfigure(6, weight=1)
-        self.grid_rowconfigure(7, weight=1)
-        self.grid_rowconfigure(8, weight=1)
-        self.grid_rowconfigure(9, weight=1)
-        self.grid_rowconfigure(10, weight=1)
+        self.grid_rowconfigure(0, weight=8)
+        self.grid_rowconfigure(1, weight=5)
+        self.grid_rowconfigure(2, weight=2)
+        self.grid_rowconfigure(3, weight=5)
+        self.grid_rowconfigure(4, weight=5)
+        self.grid_rowconfigure(5, weight=2)
+        self.grid_rowconfigure(6, weight=5)
+        self.grid_rowconfigure(7, weight=5)
+        self.grid_rowconfigure(8, weight=2)
+        self.grid_rowconfigure(9, weight=5)
+        self.grid_rowconfigure(10, weight=2)
         self.grid_rowconfigure(11, weight=1)
         self.grid_rowconfigure(12, weight=1)
-        self.grid_rowconfigure(13, weight=1)
 
 
     def setup_fonts(self):
@@ -71,37 +67,41 @@ class BonkyBotApp(customtkinter.CTk, AsyncCTk):
         self.title_label.grid(row=0, column=0, pady=(20, 5), columnspan=2)
 
         self.autovip_label = customtkinter.CTkLabel(self, text="Auto VIP keyword", font=self.main_font)
-        self.autovip_label.grid(row=1, column=0, pady=10)
+        self.autovip_label.grid(row=1, column=0)
         self.autovip_input = customtkinter.CTkEntry(self, placeholder_text="Keyword", width=200, font=self.main_font)
-        self.autovip_input.grid(row=2, column=0, pady=(0,10))
+        self.autovip_input.grid(row=2, column=0)
         self.autovip_update_button = customtkinter.CTkButton(self, text="Update", command=self.update_autovip_keyword, font=self.button_font, state="disabled")
-        self.autovip_update_button.grid(row=3, column=0, pady=(0,10))
+        self.autovip_update_button.grid(row=3, column=0)
 
         self.autoban_label = customtkinter.CTkLabel(self, text="Auto ban keyword", font=self.main_font)
-        self.autoban_label.grid(row=4, column=0, pady=10)
+        self.autoban_label.grid(row=4, column=0)
         self.autoban_input = customtkinter.CTkEntry(self, placeholder_text="Keyword", width=200, font=self.main_font)
-        self.autoban_input.grid(row=5, column=0, pady=(0,10))
+        self.autoban_input.grid(row=5, column=0)
         self.autoban_update_button = customtkinter.CTkButton(self, text="Update", command=self.update_autoban_keyword, font=self.button_font, state="disabled")
-        self.autoban_update_button.grid(row=6, column=0, pady=(0,10))
+        self.autoban_update_button.grid(row=6, column=0)
 
 
         self.timeout_label = customtkinter.CTkLabel(self, text="Timeout duration (secs)", font=self.main_font)
-        self.timeout_label.grid(row=7, column=0, pady=10)
+        self.timeout_label.grid(row=7, column=0)
         self.timeout_input = customtkinter.CTkEntry(self, placeholder_text="Duration", width=200, font=self.main_font)
-        self.timeout_input.insert(8, str(self.minigame_db.get_timeout_duration()))
-        self.timeout_input.grid(row=9, column=0, pady=(0,10))
+        self.timeout_input.insert(0, str(self.minigame_db.get_timeout_duration()))
+        self.timeout_input.grid(row=8, column=0)
         self.timeout_update_button = customtkinter.CTkButton(self, text="Update", command=self.update_timeout_duration, font=self.button_font, state="disabled")
-        self.timeout_update_button.grid(row=10, column=0, pady=(0,10))
+        self.timeout_update_button.grid(row=9, column=0)
 
         self.culling_mode_switch = customtkinter.CTkSwitch(self, text="Culling Mode", command=self.update_culling_mode, font=self.main_font)
-        self.culling_mode_switch.grid(row=11, column=0, pady=(10,10))
+        self.culling_mode_switch.grid(row=10, column=0, pady=10)
         self.get_culling_mode()
 
+        self.streamerbonk_switch = customtkinter.CTkSwitch(self, text="Streamerbonk", command=self.update_streamerbonk, font=self.main_font)
+        self.streamerbonk_switch.grid(row=11, column=0, pady=10)
+        self.get_streamerbonk_mode()
+
         self.launch_button = customtkinter.CTkButton(self, text="LAUNCH BOT", command=self.launch_bot, font=self.button_font)
-        self.launch_button.grid(row=12, column=0, pady=(30,10), columnspan=2)
+        self.launch_button.grid(row=12, column=0, pady=10, columnspan=2)
 
         self.open_config_button = customtkinter.CTkButton(self, text="CONFIG FOLDER", command=self.open_config, font=self.button_font)
-        self.open_config_button.pack(pady=10)
+        self.open_config_button.grid(row=13, column=0, pady=10)
 
     def launch_bot(self):
         main()
@@ -125,9 +125,21 @@ class BonkyBotApp(customtkinter.CTk, AsyncCTk):
         else:
             self.culling_mode_switch.deselect()
 
+    def get_streamerbonk_mode(self):
+        mode = self.minigame_db.get_streamerbonk()
+        if mode:
+            self.streamerbonk_switch.select()
+        else:
+            self.streamerbonk_switch.deselect()
+
     def update_culling_mode(self):
         mode = self.culling_mode_switch.get()
         self.minigame_db.toggle_culling_mode(mode)
+
+    def update_streamerbonk(self):
+        mode = self.streamerbonk_switch.get()
+        self.minigame_db.toggle_streamerbonk(mode)
+
 
     def update_autoban_keyword(self):
         keyword = self.autoban_input.get()
