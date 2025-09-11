@@ -1,6 +1,6 @@
 [project]
 name = "bonkybot"
-version = "0.1.6"
+version = "0.1.8"
 description = "Custom Chatbot for twitch.tv that allows for some cool chat-based minigames and moderation features for broadcasters"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -14,9 +14,6 @@ dependencies = [
     "requests>=2.32.3",
     "websockets>=15.0.1",
 ]
-
-[tool.uv.sources]
-asqlite = { git = "https://github.com/Rapptz/asqlite.git" }
 
 [dependency-groups]
 dev = [

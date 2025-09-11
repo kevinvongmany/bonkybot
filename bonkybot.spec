@@ -5,7 +5,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('bb.ico', '.')],
+    datas=[('bb.ico', '.'), ('bonkybot.py', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
