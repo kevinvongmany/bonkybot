@@ -9,16 +9,24 @@ from db import UserDatabase, BrickGameDatabase, DiceGameDatabase, MiniGameDataba
 from bot import Bot
 import re
 
+from streamerbonkhandler import send_ws_message, ACTIONS
+
 LOGGER: logging.Logger = logging.getLogger("BonkyBot")
 
 class BotComponent(commands.Component):
     def __init__(self, bot: Bot) -> None:
         # Load database files into memory
+        self.bot = bot
+        self.original_send_message = self.bot._http.post_chat_message
+        self.bot._http.post_chat_message = self.send_message_monkey_patch
         self.user_db = UserDatabase()
+        self.user_db.client = self.bot
         self.brick_db = BrickGameDatabase()
         self.dice_db = DiceGameDatabase()
         self.minigame_db = MiniGameDatabase()
-        self.bot = bot
+
+    async def send_message_monkey_patch(self, *args, source_only=True, **kwargs):
+        return await self.original_send_message(*args, source_only=source_only, **kwargs)
 
         
     def _has_mod_perms(self, ctx: commands.Context) -> bool:
@@ -41,8 +49,8 @@ class BotComponent(commands.Component):
         LOGGER.info(f"Random Chatter: {random_chatter}")
         return random_chatter
     
-    def throw_brick_at_user(self, from_user_id: str, to_user_id: str) -> str:
-        return f"{from_user_id} threw a brick at {to_user_id}"
+    def throw_brick_at_user(self, to_user_id: str) -> str:
+        return f"throws a brick at {to_user_id}"
 
     def clean_args(self, args: list[str]) -> list[str]:
         """
@@ -53,7 +61,7 @@ class BotComponent(commands.Component):
         This function removes that character and any whitespace from the
         beginning and end of the message.
         """
-        args = [arg.replace(u"\U000E0000", "").replace("@", "").strip() for arg in args]
+        args = [arg.replace(u"\u034f", "").replace(u"\U000E0000", "").replace("@", "").strip() for arg in args]
         return [arg.lower() for arg in args if arg]
     
     def load_user_from_db(self, payload: twitchio.ChatMessage) -> dict[str, str]:
@@ -81,12 +89,11 @@ class BotComponent(commands.Component):
             await payload.broadcaster.add_vip(
                 user=payload.chatter.id
             )
-            await payload.broadcaster.send_message(
-                sender=self.bot.bot_id,
-                message=f"{payload.chatter.mention} just found the VIP word: {vip_keyword}!",
+            await payload.respond(
+                content=f"You just found the VIP word: {vip_keyword}!",
             )
-            self.user_db.update_user_data(payload.chatter.id, {"mod": True})
-            self.minigame_db.update_mod_game_status(True)
+            self.user_db.update_user_data(payload.chatter.id, {"vip": True})
+            self.minigame_db.update_vip_game_status(True)
     
     async def check_for_mod_status(self, payload: twitchio.ChatMessage, user: dict[str, str]) -> None:
         if user['persistent_mod'] and not payload.chatter.moderator: 
@@ -103,6 +110,13 @@ class BotComponent(commands.Component):
             return
         if self.user_db.is_persistent_mod(user.get("id")):
             return
+        try:
+            await payload.broadcaster.remove_vip(
+                user=payload.chatter.id
+            )
+        except twitchio.HTTPException:
+            LOGGER.info(f"{payload.chatter.id} is not a VIP, skipping removal.")
+            return
         await payload.broadcaster.timeout_user(
             moderator=OWNER_ID, 
             user=payload.chatter.id, 
@@ -117,9 +131,8 @@ class BotComponent(commands.Component):
                 if datetime.now() - last_msg_dt < timedelta(minutes=10):
                     return
                 random_message = random.choice(responses)
-                await payload.broadcaster.send_message(
-                    sender=self.bot.bot_id,
-                    message=f"{payload.chatter.mention} {random_message}",
+                await payload.respond(
+                    content=f"{random_message}",
                 )
         finally:
             user['last_message_ts'] = self.user_db.get_current_timestamp()
@@ -147,15 +160,15 @@ class BotComponent(commands.Component):
     @commands.is_broadcaster()
     async def grant_perm_mod_status(self, ctx: commands.Context, chatter) -> None:
         if not chatter:
-            await ctx.send("Please provide a username to grant permanent mod status to.")
+            await ctx.payload.respond(content="Please provide a username to grant permanent mod status to.")
             return
         chatter = chatter.replace("@", "").lower()
-        chatter_id = self.user_db.get_user_id_by_name(chatter)
+        chatter_id = await self.user_db.get_user_id_by_name(chatter)
         if not chatter_id:
-            await ctx.send(f"{chatter} does not exist.")
+            await ctx.payload.respond(content=f"{chatter} does not exist.")
             return
         self.user_db.grant_permamod(chatter_id)
-        await ctx.send(f"Granted permamod to {chatter}.")
+        await ctx.payload.respond(content=f"Granted permamod to {chatter}.")
         try:
             await ctx.broadcaster.remove_vip(
                 user=chatter_id
@@ -170,16 +183,16 @@ class BotComponent(commands.Component):
     @commands.is_broadcaster()
     async def revoke_mod_status(self, ctx: commands.Context, chatter) -> None:
         if not chatter:
-            await ctx.send("Please provide a username to revoke mod status from.")
+            await ctx.payload.respond(content="Please provide a username to revoke mod status from.")
             return
         chatter = chatter.replace("@", "").lower()
-        chatter_id = self.user_db.get_user_id_by_name(chatter)
+        chatter_id = await self.user_db.get_user_id_by_name(chatter)
         if not chatter_id:
-            await ctx.send(f"{chatter} does not exist.")
+            await ctx.payload.respond(content=f"{chatter} does not exist.")
             return
         self.user_db.revoke_mod_status(chatter_id)
         if ctx.chatter.moderator:
-            await ctx.send(f"Revoking mod status from {chatter}")
+            await ctx.payload.respond(content=f"Revoking mod status from {chatter}")
             await ctx.broadcaster.remove_moderator(
                 user=chatter_id
             )
@@ -188,43 +201,63 @@ class BotComponent(commands.Component):
     @commands.is_moderator()
     async def shoutout(self, ctx: commands.Context, *args) -> None:
         if not args:
-            await ctx.send("Please provide a username to shoutout.")
+            await ctx.payload.respond(content="Please provide a username to shoutout.")
             return
         target = self.clean_args(ctx.args)[0]
-        target_id = self.user_db.get_user_id_by_name(target)
+        target_id = await self.user_db.get_user_id_by_name(target)
         if not target_id:
-            await ctx.send(f"{target} does not exist.")
+            await ctx.payload.respond(content=f"{target} does not exist.")
             return
-        await ctx.send_announcement(f"{target} is an AWESOME streamer! Please give them a follow and check them out at https://twitch.tv/{target}")
+        await ctx.send_announcement(f"{target} is an AWESOME streamer! Check them out @ twitch.tv/{target} and give them a follow!")
     
-    @commands.is_elevated()
+    @commands.is_moderator()
     @commands.command(aliases=["vip"])
     async def grant_vip_status(self, ctx: commands.Context, chatter) -> None:
         if not chatter:
-            await ctx.send("Please provide a username to grant VIP status to.")
+            await ctx.payload.respond(content="Please provide a username to grant VIP status to.")
             return
         chatter = chatter.replace("@", "").lower()
-        chatter_id = self.user_db.get_user_id_by_name(chatter)
+        chatter_id = await self.user_db.get_user_id_by_name(chatter)
         if not chatter_id:
-            await ctx.send(f"{chatter} does not exist.")
+            await ctx.payload.respond(content=f"{chatter} does not exist.")
             return
         await ctx.broadcaster.add_vip(
             user=chatter_id
         )
+
+
+    @commands.command(aliases=["brickmune", "brickimmune", "brickimmunity", "brickmmunity"])
+    async def add_brickmmune(self, ctx: commands.Context, user, *args) -> None:
+        if self._has_mod_perms(ctx) is False:
+            return
+        if not user:
+            await ctx.payload.respond(content="Format: !brickmune @username")
+            return
+        print(user)
+        chatter = user.replace("@", "").lower()
+        _chatter = await self.user_db.get_user_id_by_name(chatter) 
+        if not _chatter:
+            await ctx.payload.respond(content=f"{chatter} does not exist")
+            return
+        if chatter in self.brick_db.get_immune_users():
+            return
+        self.brick_db.add_immune_user(chatter)
+        await ctx.payload.respond(content=f"{chatter} is now immune to stray bricks")
 
     @commands.command(aliases=["autoresponse", "ar"])
     async def set_auto_response(self, ctx: commands.Context, *args) -> None:
         if self._has_mod_perms(ctx) is False:
             return
         if len(args) < 2:
-            await ctx.send("Format: !ar @username <response>")
+            await ctx.payload.respond(content="Format: !ar @username <response>")
             return
         chatter = args[0].replace("@", "").lower()
-        if not self.user_db.get_user_id_by_name(chatter):
-            await ctx.send(f"{chatter} does not exist.")
+        _chatter = await self.user_db.get_user_id_by_name(chatter) 
+        if not _chatter:
+            await ctx.payload.respond(content=f"{chatter} does not exist")
             return
         self.user_db.append_auto_response(chatter, " ".join(args[1:]))
-        await ctx.send(f"Added auto-response for {chatter}: {' '.join(args[1:])}.")
+        await ctx.payload.respond(content=f"Added auto-response for {chatter}: {' '.join(args[1:])}")
 
     # Chatter commands 
     @commands.cooldown(rate=1, per=5, key=commands.BucketType.chatter)
@@ -238,10 +271,11 @@ class BotComponent(commands.Component):
         else:
             chatters = await self.get_current_chatters(ctx)
             target = self._pick_random_chatter(chatters)
+
             if target == self.brick_db.get_users_target(ctx.chatter.name):
-                target_id = self.user_db.get_user_id_by_name(target)
+                target_id = await self.user_db.get_user_id_by_name(target)
                 if target_id:
-                    await ctx.send(f"{ctx.chatter.name} hit their target {target}! They have been timed out!")
+                    await ctx.payload.respond(content=f"throws a brick at {ctx.chatter.name}'s target {target}!", me=True)
                     await ctx.channel.timeout_user(
                         moderator=OWNER_ID, 
                         user=target_id, 
@@ -252,31 +286,44 @@ class BotComponent(commands.Component):
                         user=target_id
                     )
                     return
-        target_id = self.user_db.get_user_id_by_name(target)
-        if target_id == BOT_ID:
+        for immune_user in self.brick_db.get_immune_users():
+            if immune_user in target.lower():
+                LOGGER.info(f"{ctx.chatter.name} tried to brick an immune target.")
+                await ctx.payload.respond(content=f"tries to throw a brick at {target}!", me=True)
+                await ctx.broadcaster.timeout_user(
+                    moderator=OWNER_ID,
+                    user=ctx.chatter.id,
+                    duration=self.minigame_db.get_timeout_duration(),
+                    reason=f"The brick bounced off {target} and hit you."
+                )
+                await ctx.payload.respond(content=f"The brick bounced off {target} and hits {ctx.chatter.name} with devastating force")
+                return
+        if self.bot.user.name in target.lower():
             LOGGER.info(f"{ctx.chatter.name} tried to brick the bot.")
-            await ctx.send(f"{ctx.chatter.name} just threw a brick at {target}!")
+            await ctx.payload.respond(content=f"tries to throw a brick at {target}!", me=True)
             await ctx.broadcaster.timeout_user(
                 moderator=OWNER_ID,
                 user=ctx.chatter.id,
                 duration=self.minigame_db.get_timeout_duration(),
                 reason="Tried to brick the bot"
             )
+            await ctx.payload.respond(content=f"{ctx.chatter.name} dies for their indiscretion")
             return
 
-        if ctx.broadcaster.name in target.lower():
-            await ctx.send(f"{ctx.chatter.name} just threw a brick at {ctx.broadcaster.name}!")
+        if ctx.broadcaster.name.lower() in target.lower():
+            await ctx.payload.respond(content=f"throws a brick at {ctx.broadcaster.name}!", me=True)
             await ctx.channel.timeout_user(
                 moderator=OWNER_ID, 
                 user=ctx.chatter.id, 
                 duration=self.minigame_db.get_timeout_duration(), 
-                reason="Got bricked"
+                reason="Tried to brick the bot"
                 )
             await ctx.broadcaster.remove_vip(
                 user=ctx.chatter.id
             )
+            await ctx.payload.respond(content=f"{ctx.chatter.name} dies for their indiscretion")
             return
-        await ctx.send(self.throw_brick_at_user(ctx.chatter.name, target))
+        await ctx.payload.respond(content=self.throw_brick_at_user(target), me=True)
 
     @commands.cooldown(rate=1, per=5, key=commands.BucketType.chatter)
     @commands.command(aliases=["target"])
@@ -288,12 +335,13 @@ class BotComponent(commands.Component):
             target = _args[0]
         # Set the target for the user...
         if not target:
-            await ctx.send(f"{chatter_name} current target : {self.brick_db.get_users_target(chatter_name)}. To change it, use !target <username>.")
+            await ctx.payload.respond(content=f"{chatter_name} current target : {self.brick_db.get_users_target(chatter_name)}. To change it, use !target <username>.")
             return
         target = target.replace("@", "").lower()
-        if self.user_db.get_user_id_by_name(target) == BOT_ID:
+        _id = await self.user_db.get_user_id_by_name(target)
+        if _id == BOT_ID:
             LOGGER.info(f"{chatter_name} tried to set the bot as their target.")
-            await ctx.send("You cannot set the bot as your target.")
+            await ctx.payload.respond(content="You cannot set the bot as your target.")
             ctx.broadcaster.timeout_user(
                 moderator=OWNER_ID,
                 user=ctx.chatter.id,
@@ -302,13 +350,13 @@ class BotComponent(commands.Component):
             )
             return
         if target == chatter_name:
-            await ctx.send("You cannot set yourself as your target.")
+            await ctx.payload.respond(content="You cannot set yourself as your target.")
             return
         elif target == ctx.broadcaster.name:
-            await ctx.send("You cannot set the streamer as your target.")
+            await ctx.payload.respond(content="You cannot set the streamer as your target.")
             return
         self.brick_db.set_users_target(chatter_name, target)
-        await ctx.send(f"Set {target} as your target. !brick them to time them out!")
+        await ctx.payload.respond(content=f"Set {target} as your target. !brick them to time them out!")
 
     @commands.cooldown(rate=1, per=5, key=commands.BucketType.chatter)
     @commands.command(aliases=["d20"])
@@ -317,14 +365,14 @@ class BotComponent(commands.Component):
         random_dice_roll = random.randint(1, 20)
         if random_dice_roll == 20:
             if self.dice_db.is_new_player(ctx.chatter.name) and not ctx.chatter.moderator:
-                await ctx.send(f"{ctx.chatter.mention} just got super lucky and rolled a 20 in their first attempt today! You are now a vip!")
+                await ctx.payload.respond(content=f"{ctx.chatter.mention} rolled a 20 in their first attempt today! You are now a vip!")
                 await ctx.broadcaster.add_vip(
                     user=ctx.chatter.id
                 )
             else:
-                await ctx.send(f"{ctx.chatter.mention} rolls a natural 20!")
+                await ctx.payload.respond(content=f"{ctx.chatter.mention} rolls a natural 20!")
         elif random_dice_roll == 1:
-            await ctx.send(f"{ctx.chatter.mention} rolls a 1! CRITICAL FAIL!")
+            await ctx.payload.respond(content=f"{ctx.chatter.mention} rolls a 1! CRITICAL FAIL!")
             await ctx.channel.timeout_user(
                 moderator=OWNER_ID, 
                 user=ctx.chatter.id, 
@@ -335,8 +383,8 @@ class BotComponent(commands.Component):
                 user=ctx.chatter.id
             )
         else:
-            await ctx.send(f"{ctx.chatter.mention} rolls a {random_dice_roll}!")
-
+            await ctx.payload.respond(content=f"{ctx.chatter.mention} rolls a {random_dice_roll}!")
+            
         self.dice_db.add_player(ctx.chatter.name)
 
     @commands.cooldown(rate=1, per=5, key=commands.BucketType.chatter)
@@ -344,7 +392,7 @@ class BotComponent(commands.Component):
     async def roll_dice(self, ctx: commands.Context, *args) -> None:
         dice_format = r"^(\d+)?d\d+$"
         if not args[0] or not re.match(dice_format, args[0]):
-            await ctx.send("Please provide a valid dice format (e.g., 1d20, 2d6).")
+            await ctx.payload.respond(content="Please provide a valid dice format (e.g., 1d20, 2d6).")
             return
         dice_roll = self.clean_args(ctx.args)[0]
         try:
@@ -354,38 +402,38 @@ class BotComponent(commands.Component):
             num_dice = int(num_dice)
             sides = int(sides)            
             if num_dice <= 0 or sides <= 0:
-                await ctx.send("Number of dice and sides must be positive.")
+                await ctx.payload.respond(content="Number of dice and sides must be positive.")
                 return
             if num_dice > 100 or sides > 100:
-                await ctx.send("Too many dice or sides! Please keep it reasonable (max 100 dice, 100 sides).")
+                await ctx.payload.respond(content="Too many dice or sides! Please keep it reasonable (max 100 dice, 100 sides).")
                 return
             rolls = [random.randint(1, sides) for _ in range(num_dice)]
             total = sum(rolls)
-            await ctx.send(f"{ctx.chatter.mention} rolled a {num_dice}d{sides}: {', '.join(map(str, rolls))} (Total: {total})")
+            await ctx.payload.respond(content=f"{ctx.chatter.mention} rolled a {num_dice}d{sides}: {', '.join(map(str, rolls))} (Total: {total})")
         except ValueError as e:
             print(e)
-            await ctx.send("Invalid dice format. Please use the format <number of dice>d<sides> (e.g., 1d20, 2d6).")
+            await ctx.payload.respond(content="Invalid dice format. Please use the format <number of dice>d<sides> (e.g., 1d20, 2d6).")
             return
     
     @commands.cooldown(rate=1, per=60, key=commands.BucketType.channel)
     @commands.command(aliases=["time", "currenttime"])
     async def get_current_time(self, ctx: commands.Context) -> None:
         current_time = datetime.now().strftime("%I:%M%p")
-        await ctx.send(f"The time is currently {current_time} for {ctx.broadcaster.name}")
+        await ctx.payload.respond(content=f"The time is currently {current_time} for {ctx.broadcaster.name}")
     
     @commands.cooldown(rate=1, per=60, key=commands.BucketType.chatter)
     @commands.command(aliases=["help"])
     async def bonky_help(self, ctx: commands.Context) -> None:
         # Display a list of commands...
-        await ctx.send(
-            f"Viewer commands: !brick, !d20, !help. Broadcaster commands: !mod/!m/!m0d, !unmod/!um/!unm0d, !permamod/!pm/!permam0d. Please message @bonksolid on discord to report bugs or request features."
+        await ctx.payload.respond(content=
+            f"Viewer commands: !brick, !d20, !help. Broadcaster commands: !mod/!m/!m0d, !unmod/!um/!unm0d. Please message @bonksolid on discord to report bugs or request features."
         )
 
     @commands.cooldown(rate=1, per=60, key=commands.BucketType.chatter)
     @commands.command(aliases=["commands"])
     async def bonky_commands(self, ctx: commands.Context) -> None:
         # Display a list of commands...
-        await ctx.send(
+        await ctx.payload.respond(content=
             f"!brick - randomly bricks a random chatter, but times you out if you hit the streamer. !brick <username> - bricks the specified user. !d20 - rolls a d20 and times you out if you roll a 1."
         )
 
@@ -403,32 +451,102 @@ class BotComponent(commands.Component):
     @commands.Component.listener("follow")
     async def event_new_follower(self, payload: twitchio.ChannelFollow) -> None:
 
-        # Event dispatched when a user follows the channel from the subscription we made above...
-
-        await payload.broadcaster.send_message(
-            sender=self.bot.bot_id,
-            message=f"Thanks for the follow {payload.user.name}!",
+        await payload.respond(
+            content=f"Thank you for the follow {payload.user.name}!",
         )
 
     @commands.Component.listener("subscription")
     async def event_new_subscription(self, payload: twitchio.ChannelSubscribe) -> None:
 
-        # Event dispatched when a user subscribes to the channel from the subscription we made above...
+        await payload.respond(
+            content=f"{payload.user.name} just subscribed!",
+        )
+
+        if not self.minigame_db.get_streamerbonk():
+            return
+        if payload.gift:
+            return
+        await send_ws_message('all_abilities')
+
+    @commands.Component.listener("subscription_message")
+    async def event_new_subscription(self, payload: twitchio.ChannelSubscriptionMessage) -> None:
+
+        await payload.respond(
+            content=f"Thanks {payload.user.name} for the resub for {payload.cumulative_months} months!",
+        )
+
+        if not self.minigame_db.get_streamerbonk():
+            return
+        await send_ws_message('all_abilities')
+
+    @commands.Component.listener("subscription_gift")
+    async def event_subscription_gift(self, payload: twitchio.ChannelSubscriptionGift) -> None:
+        sub_message = f"{payload.total} sub"
+        if payload.total > 1:
+            sub_message + "s"
 
         await payload.broadcaster.send_message(
             sender=self.bot.bot_id,
-            message=f"Thanks for subscribing {payload.user.name}!",
+            message=f"Thank you {payload.user.name} for gifting {sub_message} to the channel!",
         )
+        if not self.minigame_db.get_streamerbonk():
+            return
+        if payload.total > 10:
+            LOGGER.info(f"Activating ALT+F4")
+            await send_ws_message("alt_f4")
+            return
+        for item in ACTIONS:
+            if payload.total == item['gifted_subs']:
+                LOGGER.info(f"Sending command via gifted subs {item['variable']}")
+                await send_ws_message(item['variable'])
+
 
     @commands.Component.listener("ad_break")
     async def event_ad_break(self, payload: twitchio.ChannelAdBreakBegin) -> None:
-
-        # Event dispatched when an ad break begins from the subscription we made above...
 
         await payload.broadcaster.send_announcement(
             sender=self.bot.bot_id,
             message=f"An ad break has started to help keep the channel going, we promise to be back shortly! Stay tuned for more content from {payload.broadcaster.name}! Please consider using twitch.tv/subs/{payload.broadcaster.name} you can skip ads and continue supporting the channel!",
         )
+
+    @commands.Component.listener("custom_redemption_add")
+    async def event_redeem(self, payload: twitchio.ChannelPointsRedemptionAdd) -> None:
+        if not self.minigame_db.get_streamerbonk():
+            return
+        for item in ACTIONS:
+            if payload.reward.id.lower() == item['redeem_id'].lower():
+                LOGGER.info(f"Sending command via redeem {item['variable']}")
+                await send_ws_message(item['variable'])
+
+    @commands.Component.listener("bits_use")
+    async def event_bits_use(self, payload: twitchio.ChannelBitsUse) -> None:
+        await payload.broadcaster.send_message(
+            sender=self.bot.bot_id,
+            message=f"Thank you {payload.user.name} for the {payload.bits} bits!",
+        )
+        if not self.minigame_db.get_streamerbonk():
+            return
+        
+        if payload.bits > 5000:
+            LOGGER.info(f"Activating ALT+F4")
+            await send_ws_message("alt_f4")
+            return
+        for item in ACTIONS:
+            if payload.bits == item['bits']:
+                LOGGER.info(f"Sending command via bits {item['variable']}")
+                await send_ws_message(item['variable'])
+
+async def setup(bot: commands.Bot) -> None:
+    setup_message =f"Starting up the bot for {bot.user.name}"
+    print(setup_message)
+    LOGGER.info(setup_message)
+    await bot.add_component(BotComponent(bot))
+
+async def teardown(bot: commands.Bot) -> None:
+    teardown_message =f"Bot for {bot.user.name} has been shutdown"
+    print(teardown_message)
+    LOGGER.info(teardown_message)
+    await bot.remove_component(BotComponent(bot))
     
 # if __name__ == "__main__":
 #     main()

@@ -1,8 +1,9 @@
 import json
 import os
-from config import USERS_DB, BRICK_DB, DICE_DB, MINIGAME_DB, CLIENT_ID, CLIENT_SECRET
+from config import USERS_DB, BRICK_DB, DICE_DB, MINIGAME_DB
 from datetime import datetime
-from twitchapi import TwitchAPI
+from twitchio import Client
+from twitchio.ext import commands
 
 import logging
 
@@ -21,6 +22,7 @@ class JSONDatabase:
     """
 
     def __init__(self, filepath, default_data):
+        self.client: Client | commands.Bot | None = None
         self._filepath = filepath
         _loaded_data = self.load_data()
         if not _loaded_data:
@@ -65,8 +67,7 @@ class UserDatabase(JSONDatabase):
     }
 
     def __init__(self):
-        super().__init__(USERS_DB, self.DEFAULT_DATA)
-        self.twitch_api = TwitchAPI(CLIENT_ID, CLIENT_SECRET)
+        super().__init__(USERS_DB, self.DEFAULT_DATA,)
 
     def add_user(self, user_id, payload):
         data = self.load_data()
@@ -111,14 +112,14 @@ class UserDatabase(JSONDatabase):
                 return user
         return None
     
-    def get_user_id_by_name(self, username) -> str|None:
+    async def get_user_id_by_name(self, username) -> str|None:
         data = self.load_data()
         for user in data["users"]:
             if user["name"] == username:
                 return user["id"]
         try:
-            user_data = self.twitch_api.make_request("users", params={"login": username})
-            user_id = user_data["data"][0]["id"]
+            user_data = await self.client.fetch_user(login=username)
+            user_id = user_data.id
             self.update_user_data(user_id, {"name": username})
         except (KeyError, IndexError) as e:
             logger.error(f"Failed to get user ID for {username}: {user_data}. Error: {e}")
@@ -174,6 +175,7 @@ class BrickGameDatabase(JSONDatabase):
     """
     DEFAULT_DATA = {
         "default_target": "khan",
+        "immune": [],
         "players": {}
     }
 
@@ -182,11 +184,25 @@ class BrickGameDatabase(JSONDatabase):
 
     def get_default_target(self):
         data = self.load_data()
-        return data["default_target"]
+        return data.get("default_target", "khan")
     
     def set_default_target(self, target):
         data = self.load_data()
         data["default_target"] = target
+        self.save_data(data)
+
+    def get_immune_users(self) -> list:
+        data = self.load_data()
+        return data.get("immune", [])
+    
+    def add_immune_user(self, chatter):
+        data = self.load_data()
+        immune_users = data.get("immune", [])
+        print(immune_users)
+        print([user.lower() for user in immune_users])
+        if chatter.lower() not in [user.lower() for user in immune_users]:
+            immune_users.append(chatter.lower())
+        data["immune"] = immune_users
         self.save_data(data)
     
     def get_users_target(self, username):
@@ -270,7 +286,8 @@ class MiniGameDatabase(JSONDatabase):
             "vip_keyword": "",
             "is_found": False
         },
-        "culling_mode": False
+        "culling_mode": False,
+        "streamerbonk": False
     }
 
     def __init__(self):
@@ -312,6 +329,14 @@ class MiniGameDatabase(JSONDatabase):
         except KeyError:
             return self.DEFAULT_DATA["culling_mode"]
 
+    def get_streamerbonk(self):
+        data = self.load_data()
+        try:
+            return data["streamerbonk"]
+        except KeyError:
+            return self.DEFAULT_DATA["streamerbonk"]
+
+
     def update_ban_keyword(self, keyword):
         data = self.load_data()
         try:
@@ -348,4 +373,9 @@ class MiniGameDatabase(JSONDatabase):
     def toggle_culling_mode(self, mode: int = None):
         data = self.load_data()
         data["culling_mode"] = bool(mode)
+        self.save_data(data)
+
+    def toggle_streamerbonk(self, mode: int = None):
+        data = self.load_data()
+        data["streamerbonk"] = bool(mode)
         self.save_data(data)
